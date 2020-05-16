@@ -83,9 +83,7 @@ class MathematicaToKeYmaera extends M2KConverter[KExpr] {
     else if (MathematicaOpSpec.variable.applies(e)) convertAtomicTerm(e)
     else if (MathematicaOpSpec.func.applies(e)) convertAtomicTerm(e)
     else if (MathematicaOpSpec.mapply.applies(e)) convertAtomicTerm(e)
-    else if (MathematicaOpSpec.abs.applies(e)) convertAtomicTerm(e)
-    else if (MathematicaOpSpec.min.applies(e)) convertAtomicTerm(e)
-    else if (MathematicaOpSpec.max.applies(e)) convertAtomicTerm(e)
+    else if (interpretedSymbols.keys.exists(_.applies(e))) convertAtomicTerm(e)
 
     // not supported in soundness-critical conversion, but can be overridden for non-soundness-critical tools (CEX, ODE solving)
     else throw ConversionException("Unsupported conversion for Mathematica expr: " + e.toString + " with infos: " + mathInfo(e))

@@ -429,6 +429,18 @@ Axiom "^' derive power"
 	((f(||)^(c()))' = (c()*(f(||)^(c()-1)))*(f(||)')) <- c()!=0
 End.
 
+Axiom "exp' derive exp"
+  (exp(||))' = exp(||)
+End.
+
+Axiom "sin' derive sin"
+  (sin(||))' = cos(||)
+End.
+
+Axiom "cos' derive cos"
+  (cos(||))' = -sin(||)
+End.
+
 Axiom "=' derive ="
   (f(||) = g(||))' <-> f(||)' = g(||)'
 End.

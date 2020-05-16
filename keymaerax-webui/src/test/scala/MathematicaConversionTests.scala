@@ -241,13 +241,6 @@ class MathematicaConversionTests extends FlatSpec with Matchers with BeforeAndAf
     round trip FuncOf(Function("x", None, Real, Real), Variable("y", None, Real))
   }
 
-  it should "convert special functions only when forced to" in {
-    Configuration.set(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS, "true", saveToFile = false)
-    round trip "abs(x)".asTerm
-    round trip "min(x,y)".asTerm
-    round trip "max(x,y)".asTerm
-  }
-
   it should "convert non-arg functions with nonQEConverter" in {
     val localMl = new BaseKeYmaeraMathematicaBridge[KExpr](link, new  UncheckedBaseK2MConverter(), new UncheckedBaseM2KConverter()) {}
     val e = "g()".asTerm
@@ -291,32 +284,80 @@ class MathematicaConversionTests extends FlatSpec with Matchers with BeforeAndAf
       "Core requirement failed: Interpreted functions not allowed in soundness-critical conversion to Mathematica"
     the [CoreException] thrownBy KeYmaeraToMathematica("max(x,y)".asTerm) should have message
       "Core requirement failed: Interpreted functions not allowed in soundness-critical conversion to Mathematica"
+    the [CoreException] thrownBy KeYmaeraToMathematica("exp(x)".asTerm) should have message
+      "Core requirement failed: Interpreted functions not allowed in soundness-critical conversion to Mathematica"
+    the [CoreException] thrownBy KeYmaeraToMathematica("sin(x)".asTerm) should have message
+      "Core requirement failed: Interpreted functions not allowed in soundness-critical conversion to Mathematica"
+    the [CoreException] thrownBy KeYmaeraToMathematica("cos(x)".asTerm) should have message
+      "Core requirement failed: Interpreted functions not allowed in soundness-critical conversion to Mathematica"
+
     Configuration.set(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS, "true", saveToFile = false)
+    round trip "abs(x)".asTerm
+    round trip "min(x,y)".asTerm
+    round trip "max(x,y)".asTerm
+
+    val exp = "exp(x)".asTerm
+    MathematicaToKeYmaera(KeYmaeraToMathematica(exp)) shouldBe exp
+
+    println(round.roundTrip("exp(0)".asTerm,KeYmaeraToMathematica).prettyString)
+
+    // Doesn't work because Mathematica returns Power[E,x] instead of Exp[x]
+    // round trip "exp(x)".asTerm
+    round trip "sin(x)".asTerm
+    round trip "cos(x)".asTerm
+
     KeYmaeraToMathematica("abs(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Abs"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
     KeYmaeraToMathematica("min(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Min"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
     KeYmaeraToMathematica("max(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Max"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
+    KeYmaeraToMathematica("exp(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Exp"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    KeYmaeraToMathematica("sin(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Sin"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    KeYmaeraToMathematica("cos(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Cos"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
   }
 
   it should "distinguish uninterpreted names from interpreted ones by namespace" in {
     Configuration.set(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS, "true", saveToFile = false)
+    
     KeYmaeraToMathematica(Variable("abs")) shouldBe new MExpr(Expr.SYMBOL, "kyx`abs")
     KeYmaeraToMathematica(Variable("Abs")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Abs")
     a [CoreException] should be thrownBy KeYmaeraToMathematica("abs()".asTerm)
     KeYmaeraToMathematica("Abs(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Abs"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
     KeYmaeraToMathematica("abs(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Abs"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
     a [CoreException] should be thrownBy KeYmaeraToMathematica("abs(x,y)".asTerm)
+    
     KeYmaeraToMathematica(Variable("min")) shouldBe new MExpr(Expr.SYMBOL, "kyx`min")
     KeYmaeraToMathematica(Variable("Min")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Min")
     a [CoreException] should be thrownBy KeYmaeraToMathematica("min(x)".asTerm)
     KeYmaeraToMathematica("Min(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Min"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
     KeYmaeraToMathematica("min(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Min"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
     a [CoreException] should be thrownBy KeYmaeraToMathematica("min(x,y,z)".asTerm)
+    
     KeYmaeraToMathematica(Variable("max")) shouldBe new MExpr(Expr.SYMBOL, "kyx`max")
     KeYmaeraToMathematica(Variable("Max")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Max")
     a [CoreException] should be thrownBy KeYmaeraToMathematica("max(x)".asTerm)
     KeYmaeraToMathematica("Max(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Max"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
     KeYmaeraToMathematica("max(x,y)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Max"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x"), new MExpr(Expr.SYMBOL, "kyx`y")))
     a [CoreException] should be thrownBy KeYmaeraToMathematica("max(x,y,z)".asTerm)
+    
+    KeYmaeraToMathematica(Variable("exp")) shouldBe new MExpr(Expr.SYMBOL, "kyx`exp")
+    KeYmaeraToMathematica(Variable("Exp")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Exp")
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("exp()".asTerm)
+    KeYmaeraToMathematica("Exp(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Exp"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    KeYmaeraToMathematica("exp(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Exp"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("exp(x,y)".asTerm)
+
+    KeYmaeraToMathematica(Variable("sin")) shouldBe new MExpr(Expr.SYMBOL, "kyx`sin")
+    KeYmaeraToMathematica(Variable("Sin")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Sin")
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("sin()".asTerm)
+    KeYmaeraToMathematica("Sin(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Sin"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    KeYmaeraToMathematica("sin(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Sin"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("sin(x,y)".asTerm)
+    
+    KeYmaeraToMathematica(Variable("cos")) shouldBe new MExpr(Expr.SYMBOL, "kyx`cos")
+    KeYmaeraToMathematica(Variable("Cos")) shouldBe new MExpr(Expr.SYMBOL, "kyx`Cos")
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("cos()".asTerm)
+    KeYmaeraToMathematica("Cos(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "kyx`Cos"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    KeYmaeraToMathematica("cos(x)".asTerm) shouldBe new MExpr(new MExpr(Expr.SYMBOL, "Cos"), Array[MExpr](new MExpr(Expr.SYMBOL, "kyx`x")))
+    a [CoreException] should be thrownBy KeYmaeraToMathematica("cos(x,y)".asTerm)
   }
 
   it should "convert decimal to rational" in {

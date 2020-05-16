@@ -135,6 +135,13 @@ object MathematicaOpSpec {
 
   def max: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Max"), Function("max", None, Tuple(Real, Real), Real, interpreted=true))
 
+  def exp: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Exp"), Function("exp", None, Real, Real, interpreted=true))
+
+  def sin: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Sin"), Function("sin", None, Real, Real, interpreted=true))
+
+  def cos: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Cos"), Function("cos", None, Real, Real, interpreted=true))
+
+
   def variable: NameMathOpSpec = NameMathOpSpec(
     (name: NamedSymbol, args: Array[Expr]) => {
       require(args.isEmpty, "Unexpected arguments")

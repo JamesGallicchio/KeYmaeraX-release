@@ -33,11 +33,14 @@ object MathematicaConversion {
   def importResult[T](e: MExpr, conversion: MExpr => T): T = try { conversion(e) } finally { e.dispose() }
 
   /** Interpreted symbols. */
-  val interpretedSymbols: Map[Function, InterpretedMathOpSpec] = Map(
-    MathematicaOpSpec.abs.fn -> MathematicaOpSpec.abs,
-    MathematicaOpSpec.max.fn -> MathematicaOpSpec.max,
-    MathematicaOpSpec.min.fn -> MathematicaOpSpec.min
-  )
+  val interpretedSymbols: Map[Function, InterpretedMathOpSpec] = Seq(
+    MathematicaOpSpec.abs,
+    MathematicaOpSpec.max,
+    MathematicaOpSpec.min,
+    MathematicaOpSpec.exp,
+    MathematicaOpSpec.sin,
+    MathematicaOpSpec.cos
+  ).map(f => f.fn -> f).toMap
 
   /** Returns true if `e` is aborted, false otherwise. */
   def isAborted(e: MExpr): Boolean = e == MathematicaOpSpec.aborted.op || e == MathematicaOpSpec.abort.op
