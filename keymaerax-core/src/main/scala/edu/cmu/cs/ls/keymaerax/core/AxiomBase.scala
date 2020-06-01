@@ -430,15 +430,15 @@ Axiom "^' derive power"
 End.
 
 Axiom "exp' derive exp"
-  (exp(||))' = exp(||)
+  (exp(f(||)))' = (f(||))' * exp(f(||))
 End.
 
 Axiom "sin' derive sin"
-  (sin(||))' = cos(||)
+  (sin(f(||)))' = (f(||))' * cos(f(||))
 End.
 
 Axiom "cos' derive cos"
-  (cos(||))' = -sin(||)
+  (cos(f(||)))' = -(f(||))' * sin(f(||))
 End.
 
 Axiom "=' derive ="
