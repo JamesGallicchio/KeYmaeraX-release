@@ -44,7 +44,7 @@ object CGenerator {
   def getParameters(expr: Expression, exclude: Set[BaseVariable]): Set[NamedSymbol] =
     StaticSemantics.symbols(expr)
       .filter({
-        case Function("abs", None, Real, Real, true) => false
+        case Function("abs" | "exp" | "sin" | "cos", None, Real, Real, true) => false
         case Function("min" | "max", None, Tuple(Real, Real), Real, true) => false
         case Function(name, _, Unit, _, _) => !exclude.exists(v => v.name == name.stripSuffix("post"))
         case BaseVariable(name, _, _) => !exclude.exists(v => v.name == name.stripSuffix("post"))

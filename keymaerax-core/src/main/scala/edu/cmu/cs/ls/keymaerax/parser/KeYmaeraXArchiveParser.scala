@@ -262,7 +262,10 @@ object KeYmaeraXArchiveParser {
       (FuncPredDef("abs", None, Real, DotTerm(Real, None) :: Nil, Left(None), UnknownLocation) ::
        FuncPredDef("min", None, Real, DotTerm(Real, Some(0)) :: DotTerm(Real, Some(1)) :: Nil, Left(None), UnknownLocation) ::
        FuncPredDef("max", None, Real, DotTerm(Real, Some(0)) :: DotTerm(Real, Some(1)) :: Nil, Left(None), UnknownLocation) ::
-       Nil).map(convert).reduce(_++_)
+       FuncPredDef("exp", None, Real, DotTerm(Real, None) :: Nil, Left(None), UnknownLocation) ::
+       FuncPredDef("sin", None, Real, DotTerm(Real, None) :: Nil, Left(None), UnknownLocation) ::
+       FuncPredDef("cos", None, Real, DotTerm(Real, None) :: Nil, Left(None), UnknownLocation) ::
+        Nil).map(convert).reduce(_++_)
   }
 
   private[parser] object BuiltinAnnotationDefinitions {
