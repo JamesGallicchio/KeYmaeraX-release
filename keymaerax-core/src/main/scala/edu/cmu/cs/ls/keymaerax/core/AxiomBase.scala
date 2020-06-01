@@ -169,6 +169,10 @@ private[core] object AxiomBase extends Logging {
     val sys = SystemConst("a")
     val ode = DifferentialProgramConst("c", AnyArg)
 
+    val exp = Function("exp",None,Real,Real,true)
+    val sin = Function("sin",None,Real,Real,true)
+    val cos = Function("cos",None,Real,Real,true)
+
     val H0 = PredOf(Function("H", None, Unit, Bool), Nothing)
 
     /**
@@ -236,6 +240,9 @@ private[core] object AxiomBase extends Logging {
     insist(axs("&' derive and") == Equiv(DifferentialFormula(And(pany, qany)), And(DifferentialFormula(pany), DifferentialFormula(qany))), "&' derive and")
     insist(axs("|' derive or") == Equiv(DifferentialFormula(Or(pany, qany)), And(DifferentialFormula(pany), DifferentialFormula(qany))) || axs("|' derive or") == Imply(And(DifferentialFormula(pany), DifferentialFormula(qany)), DifferentialFormula(Or(pany, qany))), "|' derive or")
     insist(axs("x' derive var") == Equal(Differential(x), DifferentialSymbol(x)), "x' derive var")
+    insist(axs("exp' derive exp") == Equal(Differential(FuncOf(exp,fany)),Times(Differential(fany),FuncOf(exp,fany))), "exp' derive exp")
+    insist(axs("sin' derive sin") == Equal(Differential(FuncOf(sin,fany)),Times(Differential(fany),FuncOf(cos,fany))), "sin' derive sin")
+    insist(axs("cos' derive cos") == Equal(Differential(FuncOf(cos,fany)),Neg(Times(Differential(fany),FuncOf(sin,fany)))), "cos' derive cos")
 
     //insist(axs("all instantiate") == Imply(Forall(Seq(x), PredOf(p,x)), PredOf(p,f0)), "all instantiate")
     // soundness-critical that these are for p() not for p(x) or p(||)
@@ -430,15 +437,15 @@ Axiom "^' derive power"
 End.
 
 Axiom "exp' derive exp"
-  (exp(f(||)))' = (f(||))' * exp(f(||))
+  (exp(f(||)))' = f(||)' * exp(f(||))
 End.
 
 Axiom "sin' derive sin"
-  (sin(f(||)))' = (f(||))' * cos(f(||))
+  (sin(f(||)))' = f(||)' * cos(f(||))
 End.
 
 Axiom "cos' derive cos"
-  (cos(f(||)))' = -(f(||))' * sin(f(||))
+  (cos(f(||)))' = - f(||)' * sin(f(||))
 End.
 
 Axiom "=' derive ="
