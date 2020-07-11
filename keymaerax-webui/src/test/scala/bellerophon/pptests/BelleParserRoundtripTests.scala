@@ -1,7 +1,7 @@
 package bellerophon.pptests
 
 import edu.cmu.cs.ls.keymaerax.bellerophon._
-import edu.cmu.cs.ls.keymaerax.bellerophon.parser.{BelleParser, BellePrettyPrinter}
+import edu.cmu.cs.ls.keymaerax.bellerophon.parser.{BelleParser, BellePrettyPrinter, DLBelleParser}
 import edu.cmu.cs.ls.keymaerax.btactics.{ArithmeticSimplification, Idioms, TacticTestBase, TactixLibrary}
 import edu.cmu.cs.ls.keymaerax.core.{AtomicODE, DifferentialSymbol}
 import edu.cmu.cs.ls.keymaerax.infrastruct.{AntePosition, SuccPosition}
@@ -14,11 +14,13 @@ import edu.cmu.cs.ls.keymaerax.tags.UsualTest
   * @author Stefan Mitsch
   */
 @UsualTest
-class RoundtripTests extends TacticTestBase {
-  private def roundTrip(tactic: String): Unit = BellePrettyPrinter(BelleParser(tactic)) shouldBe tactic
-  private def roundTrip(tactic: BelleExpr): Unit = BelleParser(BellePrettyPrinter(tactic)) shouldBe tactic
+class BelleParserRoundtripTests extends TacticTestBase {
+  private val belleParser: String=>BelleExpr = if (false) BelleParser else DLBelleParser
+
+  private def roundTrip(tactic: String): Unit = BellePrettyPrinter(belleParser(tactic)) shouldBe tactic
+  private def roundTrip(tactic: BelleExpr): Unit = belleParser(BellePrettyPrinter(tactic)) shouldBe tactic
   private def roundTrip(tactic: BelleExpr, ts: String): Unit = {
-    BelleParser(ts) shouldBe tactic
+    belleParser(ts) shouldBe tactic
     BellePrettyPrinter(tactic) shouldBe ts
     // redundant
     roundTrip(tactic)
@@ -46,7 +48,7 @@ class RoundtripTests extends TacticTestBase {
     roundTrip(Idioms.nil | Idioms.nil, "nil | nil")
     roundTrip(OnAll(Idioms.nil), "doall(nil)")
     roundTrip(Idioms.nil*2, "nil*2")
-    roundTrip(PartialTactic(Idioms.nil), "nil partial")
+    roundTrip(Idioms.nil, "nil")
   }
 
   it should "input tactic transform" in {

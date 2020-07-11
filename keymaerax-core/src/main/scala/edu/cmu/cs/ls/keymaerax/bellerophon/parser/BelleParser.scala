@@ -8,6 +8,7 @@ import edu.cmu.cs.ls.keymaerax.parser.StringConverter._
 import BelleLexer.TokenStream
 import edu.cmu.cs.ls.keymaerax.btactics.InvariantGenerator.GenProduct
 import edu.cmu.cs.ls.keymaerax.infrastruct.{AntePosition, PosInExpr, Position}
+import edu.cmu.cs.ls.keymaerax.macros._
 import edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXArchiveParser.Declaration
 import org.apache.logging.log4j.scala.Logging
 
@@ -17,8 +18,9 @@ import scala.annotation.tailrec
   * The Bellerophon parser
   *
   * @author Nathan Fulton
+  * @see [[DLBelleParser]]
   */
-object BelleParser extends (String => BelleExpr) with Logging {
+object BelleParser extends TacticParser with Logging {
   case class DefScope[K, V](defs: scala.collection.mutable.Map[K, V] = scala.collection.mutable.Map.empty[K, V],
                             parent: Option[DefScope[K, V]] = None) {
     def get(key: K): Option[V] = defs.get(key) match {
@@ -29,6 +31,10 @@ object BelleParser extends (String => BelleExpr) with Logging {
       }
     }
   }
+
+  override val tacticParser: String => BelleExpr = this
+  override val expressionParser: Parser = KeYmaeraXParser
+  override val printer: BelleExpr => String = BellePrettyPrinter
 
   /** Parses the string `s` as a Bellerophon tactic. Does not use invariant generators and does not expand definitions. */
   override def apply(s: String): BelleExpr = parseWithInvGen(s, None)
@@ -206,26 +212,6 @@ object BelleParser extends (String => BelleExpr) with Logging {
         }
       //endregion
 
-      //region After combinator
-      case _ :+ ParsedBelleExpr(_, _) :+ BelleToken(AFTER_COMBINATOR, combatinorLoc) => st.input.headOption match {
-        case Some(BelleToken(OPEN_PAREN, _)) => ParserState(stack :+ st.input.head, st.input.tail)
-        case Some(BelleToken(IDENT(_), _)) => ParserState(stack :+ st.input.head, st.input.tail)
-        case Some(BelleToken(PARTIAL, _)) => ParserState(stack :+ st.input.head, st.input.tail)
-        case Some(BelleToken(OPTIONAL, _)) => ParserState(stack :+ st.input.head, st.input.tail)
-        case Some(_) => throw ParseException("A combinator should be followed by a full tactic expression", st)
-        case None => throw ParseException("Tactic script cannot end with a combinator", combatinorLoc)
-      }
-      case r :+ ParsedBelleExpr(left, leftLoc) :+ BelleToken(AFTER_COMBINATOR, combatinorLoc) :+ ParsedBelleExpr(right, rightLoc) =>
-        st.input.headOption match {
-          case Some(BelleToken(AFTER_COMBINATOR, _)) => ParserState(st.stack :+ st.input.head, st.input.tail)
-          case Some(BelleToken(SEQ_COMBINATOR | DEPRECATED_SEQ_COMBINATOR, _)) => ParserState(st.stack :+ st.input.head, st.input.tail)
-          case _ =>
-            val parsedExpr = left > right
-            parsedExpr.setLocation(combatinorLoc)
-            ParserState(r :+ ParsedBelleExpr(parsedExpr, leftLoc.spanTo(rightLoc)), st.input)
-        }
-      //endregion
-
       //region Branch combinator
       case _ :+ ParsedBelleExpr(_, _) :+ BelleToken(BRANCH_COMBINATOR, combinatorLoc) => st.input.headOption match {
         case Some(BelleToken(OPEN_PAREN, _)) => ParserState(stack :+ st.input.head, st.input.tail)
@@ -344,7 +330,11 @@ object BelleParser extends (String => BelleExpr) with Logging {
           }
       }
       case r :+ BelleToken(EXPANDALLDEFS, loc) =>
-        ParserState(r :+ ParsedBelleExpr(ExpandAll(defs.substs), loc), st.input)
+        if (defs.substs.nonEmpty) ParserState(r :+ ParsedBelleExpr(ExpandAll(defs.substs), loc), st.input)
+        else st.input match {
+          case BelleToken(SEQ_COMBINATOR, _) :: rest => ParserState(r, rest)
+          case _ => ParserState(r, st.input)
+        }
       //endregion
 
       //region Stars and Repitition

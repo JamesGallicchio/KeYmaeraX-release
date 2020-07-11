@@ -90,27 +90,30 @@ private object ANYIDENT extends ExpectNonterminal("<Identifier>")
 private object MORE extends ExpectNonterminal("<more>") {override def toString = "..."}
 
 /**
- * KeYmaera X parser reads input strings in the concrete syntax of differential dynamic logic of KeYmaera X.
+  * KeYmaera X parser reads input strings in the concrete syntax of differential dynamic logic of KeYmaera X.
+  *
+  * Also consider using the alternative parser [[DLParser]].
   *
   * @example
- * Parsing formulas from strings is straightforward using [[edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXParser.apply]]:
- * {{{
- * val parser = KeYmaeraXParser
- * val fml0 = parser("x!=5")
- * val fml1 = parser("x>0 -> [x:=x+1;]x>1")
- * val fml2 = parser("x>=0 -> [{x'=2}]x>=0")
- * // parse only formulas
- * val fml3 = parser.formulaParser("x>=0 -> [{x'=2}]x>=0")
- * // parse only programs/games
- * val prog1 = parser.programParser("x:=x+1;{x'=2}")
- * // parse only terms
- * val term1 = parser.termParser("x^2+2*x+1")
- * }}}
+  * Parsing formulas from strings is straightforward using [[edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXParser.apply]]:
+  * {{{
+  * val parser = KeYmaeraXParser
+  * val fml0 = parser("x!=5")
+  * val fml1 = parser("x>0 -> [x:=x+1;]x>1")
+  * val fml2 = parser("x>=0 -> [{x'=2}]x>=0")
+  * // parse only formulas
+  * val fml3 = parser.formulaParser("x>=0 -> [{x'=2}]x>=0")
+  * // parse only programs/games
+  * val prog1 = parser.programParser("x:=x+1;{x'=2}")
+  * // parse only terms
+  * val term1 = parser.termParser("x^2+2*x+1")
+  * }}}
   * @author Andre Platzer
   * @see [[edu.cmu.cs.ls.keymaerax.parser]]
+  * @see [[DLParser]]
   * @see [[http://keymaeraX.org/doc/dL-grammar.md Grammar]]
   * @see [[https://github.com/LS-Lab/KeYmaeraX-release/wiki/KeYmaera-X-Syntax-and-Informal-Semantics Wiki]]
- */
+  */
 object KeYmaeraXParser extends Parser with TokenParser with Logging {
   import OpSpec.statementSemicolon
   import OpSpec.func
@@ -131,7 +134,7 @@ object KeYmaeraXParser extends Parser with TokenParser with Logging {
     catch {case e: ParseException => throw e.inInput(input, Some(tokenStream))}
   }
 
-  lazy val printer: KeYmaeraXPrettyPrinter.type = KeYmaeraXPrettyPrinter
+  override lazy val printer: KeYmaeraXPrettyPrinter.type = KeYmaeraXPrettyPrinter
 
   /** Parser state consisting of expected syntactic kind to parse currently, the item stack, and remaining input. */
   private[parser] sealed case class ParseState(stack: Stack[Item], input: TokenStream) {
@@ -194,6 +197,9 @@ object KeYmaeraXParser extends Parser with TokenParser with Logging {
       case prg: DifferentialProgram => prg
       case e@_ => throw ParseException("Input does not parse as a differential program but as " + e.kind, e).inInput("<unknown>", Some(input))
     }
+
+  //@todo
+  override val sequentParser: String => Sequent = _ => throw new UnsupportedOperationException("Not yet implemented")
 
   private val eofState = ParseState(Bottom, List(Token(EOF, UnknownLocation)))
 
@@ -427,8 +433,9 @@ object KeYmaeraXParser extends Parser with TokenParser with Logging {
       case r :+ Token(tok: IDENT, _) :+ Token(LBANANA, _) :+ Token(RBANANA, _) =>
         reduceUnitFuncOrPredOf(st, 3, tok, AnyArg, r)
       // nullary functional/predicational symbols of argument Taboo
+      // @todo: update for vectorial taboos
       case r :+ Token(tok: IDENT, _) :+ Token(LBANANA, _) :+ Expr(x: Variable) :+ Token(RBANANA, _) =>
-        reduceUnitFuncOrPredOf(st, 4, tok, Except(x), r)
+        reduceUnitFuncOrPredOf(st, 4, tok, Except(x::Nil), r)
       //      case r :+ Token(tok:IDENT,_) if la==LBANANA || la==LBARB =>
       //        shift(st)
       case r :+ Token(tok: IDENT, _) :+ Token(LBANANA, _) =>
@@ -446,13 +453,15 @@ object KeYmaeraXParser extends Parser with TokenParser with Logging {
         reduce(st, 3, DifferentialProgramConst(tok.name, AnyArg), r)
       case r :+ Token(tok: IDENT, _) :+ Token(LBARB, _) :+ Expr(x: Variable) :+ Token(RBARB, _) :+ Token(SEMI, _) if statementSemicolon =>
         require(tok.index == None, "no index supported for ProgramConst")
-        reduce(st, 5, ProgramConst(tok.name, Except(x)), r)
+        // @todo: update for vectorial taboos
+        reduce(st, 5, ProgramConst(tok.name, Except(x::Nil)), r)
       // DifferentialProgramConst symbols of argument Taboo
       case r :+ Token(tok: IDENT, _) :+ Token(LBARB, _) :+ Expr(x: Variable) :+ Token(RBARB, _) =>
         if (la == SEMI) shift(st)
         else {
           require(tok.index == None, "no index supported for DifferentialProgramConst")
-          reduce(st, 4, DifferentialProgramConst(tok.name, Except(x)), r)
+          // @todo: update for vectorial taboos
+          reduce(st, 4, DifferentialProgramConst(tok.name, Except(x::Nil)), r)
         }
       case r :+ Token(tok: IDENT, _) :+ Token(LBARB, _) :+ Token(DUAL, _) :+ Token(RBARB, _) :+ Token(SEMI, _) if statementSemicolon =>
         require(tok.index == None, "no index supported for SystemConst")

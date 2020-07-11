@@ -6,6 +6,7 @@ package edu.cmu.cs.ls.keymaerax.launcher
 
 import java.io.{FilePermission, PrintWriter}
 import java.lang.reflect.ReflectPermission
+import java.net.URLEncoder
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.{FileSystems, FileVisitResult, Files, Path, Paths, SimpleFileVisitor}
 import java.security.Permission
@@ -387,13 +388,16 @@ object KeYmaeraX {
       case tool => throw new Exception("Unknown tool " + tool + "; use one of " + Tools.tools.mkString("|"))
     }
 
-    BelleInterpreter.setInterpreter(ExhaustiveSequentialInterpreter())
+    PrettyPrinter.setPrinter(KeYmaeraXPrettyPrinter.pp)
+    BelleInterpreter.setInterpreter(LazySequentialInterpreter())
+    DerivationInfoRegistry.init
+    Ax.prepopulateDerivedLemmaDatabase()
     KeYmaeraXTool.init(Map.empty)
 
     val generator = new ConfigurableGenerator[GenProduct]()
     KeYmaeraXParser.setAnnotationListener((p: Program, inv: Formula) =>
       generator.products += (p->(generator.products.getOrElse(p, Nil) :+ (inv, None))))
-    TactixLibrary.invGenerator = generator
+    TactixLibrary.invSupplier = generator
 
     //@note just in case the user shuts down the prover from the command line
     Runtime.getRuntime.addShutdownHook(new Thread() { override def run(): Unit = { shutdownProver() } })
@@ -413,7 +417,7 @@ object KeYmaeraX {
 
     val mathematicaConfig =
       if (options.contains('mathkernel) && options.contains('jlink)) Map("linkName" -> options('mathkernel).toString,
-        "libDir" -> options('jlink).toString)
+        "libDir" -> options('jlink).toString, "tcpip" -> options.getOrElse('tcpip, "true").toString)
       else DefaultConfiguration.defaultMathematicaConfig
 
     val linkNamePath = mathematicaConfig.get("linkName") match {
@@ -469,7 +473,7 @@ object KeYmaeraX {
     implicit val ec: ExecutionContext = ExecutionContext.global
     Await.ready(Future { ToolProvider.shutdown() }, Duration(5, TimeUnit.SECONDS))
     ToolProvider.setProvider(new NoneToolProvider())
-    TactixLibrary.invGenerator = FixedGenerator(Nil)
+    TactixLibrary.invSupplier = FixedGenerator(Nil)
     KeYmaeraXTool.shutdown()
     //@note do not System.exit in here, which causes Runtime shutdown hook to re-enter this method and block
   }
@@ -486,7 +490,7 @@ object KeYmaeraX {
 
   /** Reads the value of 'tactic from the `options` (either a file name or a tactic expression).
     * Default [[TactixLibrary.auto]] if `options` does not contain 'tactic. */
-  private def readTactic(options: OptionMap): Option[BelleExpr] = {
+  private def readTactic(options: OptionMap, defs: Declaration): Option[BelleExpr] = {
     options.get('tactic) match {
       case Some(t) if File(t.toString).exists =>
         val fileName = t.toString
@@ -499,7 +503,8 @@ object KeYmaeraX {
         } else {
           Some(BelleParser(source))
         }
-      case Some(t) if !File(t.toString).exists => Some(BelleParser(t.toString))
+      case Some(t) if !File(t.toString).exists =>
+        Some(BelleParser.parseWithInvGen(t.toString, None, defs, expandAll = false))
       case None => None
     }
   }
@@ -525,7 +530,8 @@ object KeYmaeraX {
     val inputSequent = Sequent(immutable.IndexedSeq[Formula](), immutable.IndexedSeq(input))
 
     //@note open print writer to create empty file (i.e., delete previous evidence if this proof fails).
-    val pw = outputFileName.map(new PrintWriter(_))
+    val pw = outputFileName.map(fn => new PrintWriter(URLEncoder.encode(fn, "UTF-8").
+      replaceAllLiterally(URLEncoder.encode(File.separator, "UTF-8"), File.separator)))
 
     //@todo turn the following into a transformation as well. The natural type is Prover: Tactic=>(Formula=>Provable) which however always forces 'verify=true. Maybe that's not bad.
 
@@ -610,7 +616,7 @@ object KeYmaeraX {
         }
 
         if (witness.subgoals.exists(s => s.ante.isEmpty && s.succ.head == False)) {
-          ProofStatistics(name, tacticName, "disproved", Some(witness), timeout, proofDuration, qeDuration, proofSteps, tacticSize)
+          ProofStatistics(name, tacticName, "unfinished (cex)", Some(witness), timeout, proofDuration, qeDuration, proofSteps, tacticSize)
         } else {
           ProofStatistics(name, tacticName, "unfinished", Some(witness), timeout, proofDuration, qeDuration, proofSteps, tacticSize)
         }
@@ -620,6 +626,10 @@ object KeYmaeraX {
         BelleInterpreter.kill()
         // prover shutdown cleanup is done when KeYmaeraX exits
         ProofStatistics(name, tacticName, "timeout", None, timeout, -1, -1, -1, -1)
+      case _: Throwable =>
+        BelleInterpreter.kill()
+        // prover shutdown cleanup is done when KeYmaeraX exits
+        ProofStatistics(name, tacticName, "failed", None, timeout, -1, -1, -1, -1)
     }
 
     proofStatistics
@@ -716,12 +726,13 @@ object KeYmaeraX {
     })
 
     val verbose = options.getOrElse('verbose, false).asInstanceOf[Boolean]
-    val tacticString = readTactic(options)
+    val tacticString = readTactic(options, entry.defs)
     val reqTacticName = options.get('tacticName)
     val timeout = options.getOrElse('timeout, 0L).asInstanceOf[Long]
 
     //@note open print writer to create empty file (i.e., delete previous evidence if this proof fails).
-    new PrintWriter(outputFileName)
+    new PrintWriter(URLEncoder.encode(outputFileName, "UTF-8").
+      replaceAllLiterally(URLEncoder.encode(File.separator, "UTF-8"), File.separator))
 
     val t = tacticString match {
       case Some(tac) => ("user", "user", tac) :: Nil
@@ -839,7 +850,7 @@ object KeYmaeraX {
       val lemmaEntries = lemmas.map({ case (name, fml, tactic) =>
         val serializableTactic = db.extractSerializableTactic(fml, tactic)
         ParsedArchiveEntry(name, "lemma", "", "", Declaration(Map.empty), fml,
-          (name + " Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Map.empty)})
+          (name + " Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Nil, Map.empty)})
       // check and store lemmas
       lemmaEntries.foreach(entry => {
         println(s"Checking sandbox lemma ${entry.name}...")
@@ -858,7 +869,7 @@ object KeYmaeraX {
 
       val serializableTactic = db.extractSerializableTactic(sandbox, sbTactic)
       val sandboxEntry = ParsedArchiveEntry(inputEntry.name + " Sandbox", "theorem", "", "", Declaration(Map.empty),
-        sandbox, (inputEntry.name + " Sandbox Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Map.empty)
+        sandbox, (inputEntry.name + " Sandbox Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Nil, Map.empty)
       // check sandbox proof
       println("Checking sandbox safety...")
       assert(TactixLibrary.proveBy(sandboxEntry.model.asInstanceOf[Formula],
@@ -1060,9 +1071,9 @@ object KeYmaeraX {
     val archiveContent = KeYmaeraXArchiveParser.parseFromFile(kyxFile)
 
     //@note remove all tactics, e.model does not contain annotations anyway
-    //@note remove all definitions too, those might be used as proof hints
-    def stripEntry(e: ParsedArchiveEntry): ParsedArchiveEntry =
-      ParsedArchiveEntry(e.name, e.kind, e.fileContent, e.problemContent, Declaration(Map.empty), e.model, Nil, e.info)
+    //@note fully expand model and remove all definitions too, those might be used as proof hints
+    def stripEntry(e: ParsedArchiveEntry): ParsedArchiveEntry = e.copy(model = e.defs.exhaustiveSubst(e.model),
+      defs = Declaration(Map.empty), tactics = Nil, annotations = Nil)
 
     val printer = new KeYmaeraXArchivePrinter()
     val printedStrippedContent = archiveContent.map(stripEntry).map(printer(_)).mkString("\n\n")

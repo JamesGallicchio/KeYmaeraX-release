@@ -106,7 +106,7 @@ class Compbased extends TacticTestBase {
       Box(Choice(a,b), p),
       Box(Compose(Choice(Compose(a, Assign(s, Number(1))), Assign(s, Number(0))), Choice(Compose(Test(Equal(s, Number(0))), b), Compose(Test(Not(Equal(s, Number(0)))), Test(True)))), p))
 
-    val equalReflex = proveBy("true <-> s()=s()".asFormula, equivR(1) <(cohideR(1) & byUS("= reflexive") & done, prop & done))
+    val equalReflex = proveBy("true <-> s()=s()".asFormula, equivR(1) <(cohideR(1) & byUS(Ax.equalReflexive) & done, prop & done))
     equalReflex shouldBe 'proved
 
     val falseImplies = proveBy("true <-> (false -> p())".asFormula, prop & done)
@@ -121,11 +121,11 @@ class Compbased extends TacticTestBase {
         composeb(1) & assignb(1, 1::Nil) & choiceb(1, 1::Nil) & composeb(1, 1::0::Nil) & testb(1, 1::0::Nil) & chase(1, 1::1::Nil) &
           useAt(oneIsNotZero, PosInExpr(1::Nil))(1, 1::0::0::Nil) & useAt(falseImplies, PosInExpr(1::Nil))(1, 1::0::Nil) &
           useAt(oneIsNotZero, PosInExpr(1::Nil))(1, 1::1::0::0::Nil) & useAt(notTrue, PosInExpr(0::Nil))(1, 1::1::0::0::Nil) &
-          useAt("!! double negation")(1, 1::1::0::Nil) & useAt("true->", PosInExpr(0::Nil))(1, 1::1::Nil) &
-          useAt("true&", PosInExpr(0::Nil))(1, 1::Nil) & closeId
+          useAt(Ax.doubleNegation)(1, 1::1::0::Nil) & useAt(Ax.trueImply, PosInExpr(0::Nil))(1, 1::1::Nil) &
+          useAt(Ax.trueAnd, PosInExpr(0::Nil))(1, 1::Nil) & closeId
         ,
         assignb(1) & choiceb(1) & andR(1) <(
-          composeb(1) & testb(1) & useAt(equalReflex, PosInExpr(1::Nil))(1, 0::Nil) & useAt("true->")(1) & closeId
+          composeb(1) & testb(1) & useAt(equalReflex, PosInExpr(1::Nil))(1, 0::Nil) & useAt(Ax.trueImply)(1) & closeId
           ,
           composeb(1) & testb(1) & useAt(equalReflex, PosInExpr(1::Nil))(1, 0::0::Nil) &
             useAt(notTrue, PosInExpr(1::Nil))(1, 0::Nil) &
@@ -156,6 +156,8 @@ class Compbased extends TacticTestBase {
         val repl = proveBy(Imply(p, Equiv(True, Diamond(Assign(margin, metric), LessEqual(margin, Number(0))))),
           assignd(1, 1::1::Nil) & QE & done)
         useAt(repl, PosInExpr(1::0::Nil))(pos ++ PosInExpr(0::0::1::0::Nil))
+      case Some(e) => throw new TacticInapplicableFailure("toMetric only applicable to diamond properties, but got " + e.prettyString)
+      case None => throw new IllFormedTacticApplicationException("Position " + pos + " does not point to a valid position in sequent " + seq.prettyString)
     })
 
     val entry = KeYmaeraXArchiveParser.getEntry("Obstacle Contract Compliance",
@@ -264,13 +266,13 @@ class Compbased extends TacticTestBase {
         |          | abs(y-yo) > v^2 / (2*B()) + V()*(v/B()))""".stripMargin.asFormula
 
     def di(a: String): DependentPositionTactic = diffInvariant(
-      "0<=t".asFormula,
-      "dx^2 + dy^2 = 1".asFormula,
-      s"v = old(v) + $a*t".asFormula,
-      s"-t * (v - $a/2*t) <= x - old(x) & x - old(x) <= t * (v - $a/2*t)".asFormula,
-      s"-t * (v - $a/2*t) <= y - old(y) & y - old(y) <= t * (v - $a/2*t)".asFormula,
-      "-t * V() <= xo - old(xo) & xo - old(xo) <= t * V()".asFormula,
-      "-t * V() <= yo - old(yo) & yo - old(yo) <= t * V()".asFormula)
+      "0<=t".asFormula ::
+      "dx^2 + dy^2 = 1".asFormula ::
+      s"v = old(v) + $a*t".asFormula ::
+      s"-t * (v - $a/2*t) <= x - old(x) & x - old(x) <= t * (v - $a/2*t)".asFormula ::
+      s"-t * (v - $a/2*t) <= y - old(y) & y - old(y) <= t * (v - $a/2*t)".asFormula ::
+      "-t * V() <= xo - old(xo) & xo - old(xo) <= t * V()".asFormula ::
+      "-t * V() <= yo - old(yo) & yo - old(yo) <= t * V()".asFormula :: Nil)
 
     val dw: BelleExpr = exhaustiveEqR2L(hide=true)('Llast)*5 /* 5 old(...) in DI */ & SaturateTactic(andL('L)) &
       print("Before diffWeaken") & dW(1) & print("After diffWeaken")
@@ -285,17 +287,17 @@ class Compbased extends TacticTestBase {
       /* base case */ print("Base case...") & simpQE & print("Base case done"),
       /* use case */ print("Use case...") & simpQE & print("Use case done"),
       /* induction step */ print("Induction step") & chase(1) & normalize(andR) & printIndexed("After normalize") <(
-      print("Braking branch 1") & di("-B()")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(simpQE) & print("Braking branch 1 done"),
-      print("Braking branch 2") & di("-B()")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(simpQE) & print("Braking branch 2 done"),
-      print("Stopped branch 1") & di("0")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(simpQE) & print("Stopped branch 1 done"),
+      print("Braking branch 1") & di("-B()")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(simpQE) & print("Braking branch 1 done"),
+      print("Braking branch 2") & di("-B()")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(simpQE) & print("Braking branch 2 done"),
+      print("Stopped branch 1") & di("0")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(simpQE) & print("Stopped branch 1 done"),
       print("Acceleration branch 1") & hideL('L, "v=0|abs(x-xo)>v^2/(2*B())+V()*(v/B())|abs(y-yo)>v^2/(2*B())+V()*(v/B())".asFormula) &
-        di("a")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(hideFactsAbout("dx", "dy", "dxo", "dyo", "k", "k_0", "dx_0", "dy_0")) <(
+        di("a")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(hideFactsAbout("dx", "dy", "dxo", "dyo", "k", "k_0", "dx_0", "dy_0")) <(
         hideFactsAbout("y", "yo") & accArithTactic,
         hideFactsAbout("x", "xo") & accArithTactic
         ) & print("Acceleration branch 1 done"),
-      print("Stopped branch 1") & di("0")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(simpQE) & print("Stopped branch 2 done"),
+      print("Stopped branch 1") & di("0")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(simpQE) & print("Stopped branch 2 done"),
       print("Acceleration branch 2") & hideL('L, "v=0|abs(x-xo)>v^2/(2*B())+V()*(v/B())|abs(y-yo)>v^2/(2*B())+V()*(v/B())".asFormula) &
-        di("a")(1) & dw & prop & OnAll((cohide(1) & byUS("= reflexive")) | skip) & OnAll(hideFactsAbout("dx", "dy", "dxo", "dyo", "k", "k_0", "dx_0", "dy_0")) <(
+        di("a")(1) & dw & prop & OnAll((cohide(1) & byUS(Ax.equalReflexive)) | skip) & OnAll(hideFactsAbout("dx", "dy", "dxo", "dyo", "k", "k_0", "dx_0", "dy_0")) <(
         hideFactsAbout("y", "yo") & accArithTactic,
         hideFactsAbout("x", "xo") & accArithTactic
         ) & print("Acceleration branch 2 done")

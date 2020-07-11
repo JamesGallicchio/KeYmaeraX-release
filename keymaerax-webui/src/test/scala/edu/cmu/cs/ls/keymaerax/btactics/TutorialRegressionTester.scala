@@ -50,16 +50,17 @@ abstract class RegressionTesterBase(val tutorialName: String, val url: String) e
     else throw new IllegalArgumentException(s"URL must end in either .json, .kya, or .kyx, but got $url")
   })
 
-  tutorialName should "parse all models" in {
+  tutorialName should "parse all models" in withZ3 { _ =>
     forEvery (tutorialEntries) { (tutorialName, name, model, _, _, _, _, _) =>
       withClue(tutorialName + "/" + name) { KeYmaeraXArchiveParser.parseProblem(model, parseTactics=false) }
     }
   }
 
-  it should "parse all tactics" in {
-    forEvery (tutorialEntries.filter(_._7.nonEmpty)) { (tutorialName, name, _, _, _, _, tactics, _) =>
+  it should "parse all tactics" in withZ3 { _ =>
+    forEvery (tutorialEntries.filter(_._7.nonEmpty)) { (tutorialName, name, model, _, _, _, tactics, _) =>
+      val defs = KeYmaeraXArchiveParser.parseProblem(model, parseTactics=false).defs
       forEvery (table(tactics)) { ( tname, ttext) =>
-        withClue(tutorialName + "/" + name + "/" + tname) { BelleParser(ttext) }
+        withClue(tutorialName + "/" + name + "/" + tname) { BelleParser.parseWithInvGen(ttext, None, defs) }
       }
     }
   }
@@ -140,14 +141,14 @@ abstract class RegressionTesterBase(val tutorialName: String, val url: String) e
 
   /** Parse a problem file to find declarations and invariant annotations */
   private def parseProblem(model: String): (Declaration, Generator[GenProduct]) = {
-    TactixLibrary.invGenerator = FixedGenerator(Nil)
+    TactixLibrary.invSupplier = FixedGenerator(Nil)
     val generator = new ConfigurableGenerator[GenProduct]()
     KeYmaeraXParser.setAnnotationListener((p: Program, inv: Formula) =>
       generator.products += (p -> (generator.products.getOrElse(p, Nil) :+ (inv, None))))
     val entry = KeYmaeraXArchiveParser.parseProblem(model, parseTactics=false)
-    TactixLibrary.invGenerator = generator
-    TactixLibrary.differentialInvGenerator =
-      (sequent,pos) => generator(sequent,pos) #::: InvariantGenerator.differentialInvariantCandidates(sequent,pos)
+    TactixLibrary.invSupplier = generator
+    TactixLibrary.differentialInvGenerator = InvariantGenerator.cached(InvariantGenerator.differentialInvariantGenerator)
+    TactixLibrary.loopInvGenerator = InvariantGenerator.cached(InvariantGenerator.loopInvariantGenerator)
     KeYmaeraXParser.setAnnotationListener((_: Program, _: Formula) => {}) //@note cleanup for separation between tutorial entries
     (entry.defs, generator)
   }

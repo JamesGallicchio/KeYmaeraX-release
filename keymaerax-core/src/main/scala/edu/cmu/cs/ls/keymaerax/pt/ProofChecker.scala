@@ -1,6 +1,7 @@
 package edu.cmu.cs.ls.keymaerax.pt
 
-import edu.cmu.cs.ls.keymaerax.btactics.{AxiomInfo, DerivedAxiomInfo, DerivedRuleInfo, ProvableInfo}
+import edu.cmu.cs.ls.keymaerax.macros._
+import edu.cmu.cs.ls.keymaerax.btactics.DerivationInfoAugmentors._
 import edu.cmu.cs.ls.keymaerax.core._
 import edu.cmu.cs.ls.keymaerax.btactics.TactixLibrary.{US, _}
 
@@ -20,6 +21,7 @@ import scala.collection.immutable
   * @author Brandon Bohrer
  * @see [[ProofTerm]]
  * @see [[ProvableSig]]
+  * @todo Currently not operational: fixme
  */
 object ProofChecker {
   case class ProofCheckException(str: String) extends Exception {}
@@ -48,13 +50,14 @@ object ProofChecker {
             val node = proofNode(axiomFml)
             //@TODO: Why?
             //Just do an empty uniform substitution...
-            proveBy(node, US(USubst(scala.collection.immutable.Seq()), info.canonicalName))
+            //
+            ??? //@todo proveBy(node, US(USubst(scala.collection.immutable.Seq()), info.canonicalName))
           } catch {
             // If derived axioms didn't do it, try core axioms too
             case e:Exception =>
               val axiomFml = AxiomInfo(axiomName).provable.conclusion
               val node = proofNode(axiomFml)
-              proveBy(node, US(USubst(scala.collection.immutable.Seq()), axiomName))
+              ??? //@todo proveBy(node, US(USubst(scala.collection.immutable.Seq()), axiomName))
           }
         }
 

@@ -1,14 +1,16 @@
 package edu.cmu.cs.ls.keymaerax.bellerophon
 
+import edu.cmu.cs.ls.keymaerax.macros._
 import edu.cmu.cs.ls.keymaerax.btactics.InvariantGenerator.GenProduct
 import edu.cmu.cs.ls.keymaerax.btactics._
 import edu.cmu.cs.ls.keymaerax.core._
-import edu.cmu.cs.ls.keymaerax.infrastruct.Position
+import edu.cmu.cs.ls.keymaerax.infrastruct.{PosInExpr, Position}
 import edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXArchiveParser.Declaration
 import org.apache.logging.log4j.scala.Logging
 
 import scala.annotation.tailrec
 import scala.reflect.runtime.universe.typeTag
+import edu.cmu.cs.ls.keymaerax.btactics.DerivationInfoAugmentors._
 
 /**
   * Constructs a [[edu.cmu.cs.ls.keymaerax.bellerophon.BelleExpr]] from a tactic name
@@ -38,6 +40,7 @@ object ReflectiveExpressionBuilder extends Logging {
       case (expr: TypedFunc[String, _], (s: String) :: Nil) if expr.argType.tpe <:< typeTag[String].tpe =>
         println(s)
         expr(s)
+      case (expr: TypedFunc[PosInExpr, _], (pie: String) :: Nil) if expr.argType.tpe <:< typeTag[PosInExpr].tpe => expr(PosInExpr.parse(pie))
       case (expr: TypedFunc[Formula, _], (fml: Formula) :: Nil) if expr.argType.tpe <:< typeTag[Formula].tpe => expr(fml)
       case (expr: TypedFunc[Variable, _], (y: Variable) :: Nil) if expr.argType.tpe <:< typeTag[Variable].tpe => expr(y)
       case (expr: TypedFunc[Term, _], (term: Term) :: Nil) if expr.argType.tpe <:< typeTag[Term].tpe => expr(term)
@@ -85,6 +88,14 @@ object ReflectiveExpressionBuilder extends Logging {
     }
   }
 
+  /**
+    * Create the BelleExpr tactic expression `name(arguments)`.
+    * @param name The codeName of the Bellerophon tactic to create according to [[TacticInfo.codeName]].
+    * @param arguments the list of arguments passed to the tactic, either expressions or positions.
+    * @param generator invariant generators passed to the tactic, if any.
+    * @param defs
+    * @return `name(arguments)` as a BelleExpr.
+    */
   def apply(name: String, arguments: List[Either[Seq[Any], PositionLocator]] = Nil,
             generator: Option[Generator.Generator[GenProduct]], defs: Declaration) : BelleExpr = {
     if (!DerivationInfo.hasCodeName(name)) {

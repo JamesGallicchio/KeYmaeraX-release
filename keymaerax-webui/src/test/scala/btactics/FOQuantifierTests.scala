@@ -10,6 +10,7 @@ import edu.cmu.cs.ls.keymaerax.tags.{SummaryTest, UsualTest}
 
 import scala.collection.immutable.IndexedSeq
 import org.scalatest.LoneElement._
+import testHelper.KeYmaeraXTestTags.TodoTest
 
 /**
  * Tests [[edu.cmu.cs.ls.keymaerax.btactics.FOQuantifierTactics]].
@@ -54,7 +55,7 @@ class FOQuantifierTests extends TacticTestBase {
     {
       val result = proveBy(
         Sequent(IndexedSeq("\\forall z \\forall y y>z".asFormula), IndexedSeq()),
-        allInstantiate()(-1))
+        allInstantiate(None, None)(-1))
       result.subgoals.loneElement shouldBe "\\forall y y>z ==> ".asSequent
     }
     {
@@ -233,7 +234,7 @@ class FOQuantifierTests extends TacticTestBase {
   it should "instantiate variables bound in an ODE" in {
     proveBy(
       Sequent(IndexedSeq(), IndexedSeq("\\exists y [{x'=2,y'=0*y+1&true}]x>0".asFormula)),
-      existsInstantiate()(1)).subgoals.loneElement shouldBe "==> [{x'=2,y'=0*y+1&true}]x>0".asSequent
+      existsInstantiate(None, None)(1)).subgoals.loneElement shouldBe "==> [{x'=2,y'=0*y+1&true}]x>0".asSequent
 
     proveBy(
       Sequent(IndexedSeq(), IndexedSeq("\\exists y [{x'=2,y'=0*y+1&true}]x>0".asFormula)),
@@ -257,6 +258,21 @@ class FOQuantifierTests extends TacticTestBase {
     )
     //note: there is a reordering of the succedents after existsR!
     result.subgoals.loneElement shouldBe "x=y, z=1  ==>  z_0!=1, y!=1, [{z'=1&true}]x=z".asSequent
+  }
+
+  it should "instantiate in the presence of space exceptions" in {
+    val result = proveBy("z=1 ==> \\exists y [{y'=f(|y|)^2, z' = g(|y|), a'=h(||)}]y>=0".asSequent,
+      existsR("z+1".asTerm)(1)
+    )
+    println(result)
+    result.subgoals.loneElement shouldBe "z=1, y=z+1  ==>  [{y'=f(|y|)^2,z'=g(|y|),a'=h(||)&true}]y>=0".asSequent
+  }
+
+  it should "FEATURE_REQUEST: instantiate in the presence of space exceptions with self reference" taggedAs TodoTest in {
+    val result = proveBy("z=1, ==> \\exists y [{y'=f(|y|)^2, z' = g(|y|), a'=h(||)}]y>=0".asSequent,
+      existsR("z+y".asTerm)(1)
+    )
+    // todo: this is hard and/or impossible since cannot "invent" an old name for y
   }
 
   "exists generalize" should "only generalize the specified occurrences of t" in {

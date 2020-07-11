@@ -130,37 +130,47 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
   /**
    * Creates and initializes Mathematica for tests that want to use QE. Also necessary for tests that use derived
    * axioms that are proved by QE.
-   * @example{{{
+   * @example {{{
    *    "My test" should "prove something with Mathematica" in withMathematica { qeTool =>
    *      // ... your test code here
    *    }
    * }}}
    * */
-  def withMathematica(testcode: Mathematica => Any, timeout: Int = -1): Unit = mathematicaProvider.synchronized {
+  def withMathematica(testcode: Mathematica => Any, timeout: Int = -1, initLibrary: Boolean = true): Unit = mathematicaProvider.synchronized {
     val mathLinkTcp = System.getProperty(Configuration.Keys.MATH_LINK_TCPIP, Configuration(Configuration.Keys.MATH_LINK_TCPIP)) // JVM parameter -DMATH_LINK_TCPIP=[true,false]
-    withTemporaryConfig(Map(
-        Configuration.Keys.MATH_LINK_TCPIP -> mathLinkTcp,
-        Configuration.Keys.QE_TOOL -> "mathematica",
-        Configuration.Keys.QE_ALLOW_INTERPRETED_FNS -> "false")) {
+    val common = Map(
+      Configuration.Keys.MATH_LINK_TCPIP -> mathLinkTcp,
+      Configuration.Keys.QE_TOOL -> "mathematica")
+    val interp = common.+(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS -> "true")
+    val uninterp = common.+(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS -> "false")
+    withTemporaryConfig(common) {
       val provider = mathematicaProvider()
       ToolProvider.setProvider(provider)
       val tool = provider.defaultTool() match {
         case Some(m: Mathematica) => m
         case _ => fail("Illegal Wolfram tool, please use one of 'Mathematica' or 'Wolfram Engine' in test setup")
       }
-
-      val to = if (timeout == -1) timeLimit else Span(timeout, Seconds)
-      implicit val signaler: Signaler = (t: Thread) => {
-        theInterpreter.kill()
-        tool.cancel()
-        tool.shutdown() // let testcode know it should stop (forEvery catches all exceptions)
-        mathematicaProvider.synchronized {
-          mathematicaProvider().doShutdown() //@note see [[afterAll]]
-          provider.shutdown()
-          mathematicaProvider = new Lazy(new DelayedShutdownToolProvider(new MathematicaToolProvider(configFileMathematicaConfig)))
+      if(initLibrary) {
+        withTemporaryConfig(interp) {
+          Ax.prepopulateDerivedLemmaDatabase()
         }
       }
-      failAfter(to) { testcode(tool) }
+      withTemporaryConfig(uninterp) {
+        val to = if (timeout == -1) timeLimit else Span(timeout, Seconds)
+        implicit val signaler: Signaler = (t: Thread) => {
+          theInterpreter.kill()
+          tool.cancel()
+          tool.shutdown() // let testcode know it should stop (forEvery catches all exceptions)
+          mathematicaProvider.synchronized {
+            mathematicaProvider().doShutdown() //@note see [[afterAll]]
+            provider.shutdown()
+            mathematicaProvider = new Lazy(new DelayedShutdownToolProvider(new MathematicaToolProvider(configFileMathematicaConfig)))
+          }
+        }
+        failAfter(to) {
+          testcode(tool)
+        }
+      }
     }
   }
 
@@ -168,39 +178,52 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
     * Creates and initializes Z3 for tests that want to use QE. Also necessary for tests that use derived
     * axioms that are proved by QE.
     * Note that Mathematica should also ne initialized in order to perform DiffSolution and CounterExample
-    * @example{{{
+    * @example {{{
     *    "My test" should "prove something with Z3" in withZ3 { qeTool =>
     *      // ... your test code here
     *    }
     * }}}
     * */
-  def withZ3(testcode: Z3 => Any, timeout: Int = -1) {
-    withTemporaryConfig(Map(Configuration.Keys.QE_TOOL -> "z3")) {
+  def withZ3(testcode: Z3 => Any, timeout: Int = -1, initLibrary: Boolean = true) {
+    val common = Map(Configuration.Keys.QE_TOOL -> "z3")
+    val interp = common.+(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS -> "true")
+    val uninterp = common.+(Configuration.Keys.QE_ALLOW_INTERPRETED_FNS -> "false")
+    withTemporaryConfig(common) {
       val provider = new Z3ToolProvider
       ToolProvider.setProvider(provider)
       provider.tool().setOperationTimeout(timeout)
       val tool = provider.tool()
-      val to = if (timeout == -1) timeLimit else Span(timeout, Seconds)
-      implicit val signaler: Signaler = { t: Thread =>
-        theInterpreter.kill()
-        tool.cancel()
-        t.interrupt()
-        provider.shutdown()
+      if(initLibrary) {
+        withTemporaryConfig(interp) {
+          Ax.prepopulateDerivedLemmaDatabase()
+        }
       }
-      failAfter(to) { testcode(tool) }
+      withTemporaryConfig(uninterp) {
+        val to = if (timeout == -1) timeLimit else Span(timeout, Seconds)
+        implicit val signaler: Signaler = { t: Thread =>
+          theInterpreter.kill()
+          tool.cancel()
+          t.interrupt()
+          provider.shutdown()
+        }
+        failAfter(to) {
+          testcode(tool)
+        }
+      }
     }
   }
 
   /** Tests with both Mathematica and Z3 as QE tools. */
-  def withQE(testcode: Tool with QETacticTool => Any, timeout: Int = -1): Unit = {
-    withClue("Mathematica") { withMathematica(testcode, timeout) }
+  def withQE(testcode: Tool with QETacticTool => Any, timeout: Int = -1, initLibrary: Boolean = true): Unit = {
+    withClue("Mathematica") { withMathematica(testcode, timeout, initLibrary) }
     afterEach()
     beforeEach()
-    withClue("Z3") { withZ3(testcode, timeout) }
+    withClue("Z3") { withZ3(testcode, timeout, initLibrary) }
   }
 
   /** Creates and initializes Mathematica; checks that a Matlab bridge is configured. @see[[withMathematica]]. */
-  def withMathematicaMatlab(testcode: Mathematica => Any, timeout: Int = -1) {
+    //@todo skip if not matlink set up
+  def withMathematicaMatlab(testcode: Mathematica => Any, timeout: Int = -1, initLibrary: Boolean = true) {
     if (System.getProperty("KILL_MATLAB") == "true") {
       var killExit = 0
       while (killExit == 0) {
@@ -209,7 +232,7 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
         killExit = p.exitValue()
       }
     }
-    withMathematica ({ tool =>
+    withMathematica (initLibrary = initLibrary, timeout = timeout, testcode = { tool =>
       val getLink = PrivateMethod[JLinkMathematicaLink]('link)
       val link = tool invokePrivate getLink()
       link.runUnchecked("""Needs["MATLink`"]""", new M2KConverter[KExpr]() {
@@ -222,7 +245,7 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
         override def convert(e: MExpr): KExpr = throw new Exception("Unexpected call to convert")
       })
       testcode(tool)
-    }, timeout)
+    })
   }
 
   /** Executes `testcode` with a temporary configuration that gets reset after execution. */
@@ -248,22 +271,26 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
       (if (LOG_QE_DURATION) qeDurationListener::Nil else Nil) ++
       (if (LOG_QE_STDOUT) qeStdOutListener::Nil else Nil)
     dbTester = new Lazy(new TempDBTools(listeners))
+    DerivationInfoRegistry.init
     BelleInterpreter.setInterpreter(registerInterpreter(LazySequentialInterpreter(listeners)))
     PrettyPrinter.setPrinter(KeYmaeraXPrettyPrinter.pp)
     val generator = new ConfigurableGenerator[GenProduct]()
     KeYmaeraXParser.setAnnotationListener((p: Program, inv: Formula) =>
       generator.products += (p->(generator.products.getOrElse(p, Nil) :+ (inv, Some(AnnotationProofHint(tryHard=true)))).distinct))
-    TactixLibrary.invGenerator = generator
-    TactixLibrary.differentialInvGenerator =
-      (sequent,pos) => generator(sequent,pos) #::: InvariantGenerator.differentialInvariantCandidates(sequent,pos)
+    TactixLibrary.invSupplier = generator
+    // reinitialize with empty caches for test case separation
+    TactixLibrary.differentialInvGenerator = InvariantGenerator.cached(InvariantGenerator.differentialInvariantGenerator)
+    TactixLibrary.loopInvGenerator = InvariantGenerator.cached(InvariantGenerator.loopInvariantGenerator)
     //@note Mathematica is expected to shut down only in afterAll(), but setting provider shuts down the current provider
     if (!mathematicaProvider.isInitialized) ToolProvider.setProvider(new NoneToolProvider())
     LemmaDBFactory.lemmaDB.removeAll("user/tests")
+    LemmaDBFactory.lemmaDB.removeAll("qecache")
   }
 
   /* Test teardown */
   override def afterEach(): Unit = {
     LemmaDBFactory.lemmaDB.removeAll("user/tests")
+    LemmaDBFactory.lemmaDB.removeAll("qecache")
     try {
       interpreters.foreach(i => try { i.kill() } catch { case ex: Throwable => ex.printStackTrace() })
       interpreters = Nil
@@ -275,8 +302,9 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
         dbTester().db.session.close()
         dbTester = null
       }
-      TactixLibrary.invGenerator = FixedGenerator(Nil)
+      TactixLibrary.invSupplier = FixedGenerator(Nil)
       TactixLibrary.differentialInvGenerator = FixedGenerator(Nil)
+      TactixLibrary.loopInvGenerator = FixedGenerator(Nil)
     }
   }
 
@@ -355,7 +383,7 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
   }
 
   /** Execute a task with tactic progress.
-    * @example{{{
+    * @example {{{
     *   withTacticProgress("implyR(1)".asTactic) { proveBy("x>0 -> x>=0".asFormula, _) }
     *   withTacticProgress("master".asTactic, "master"::"step"::"stepAt"::Nil) { proveBy("x>0 -> x>=0".asFormula, _) }
     * }}}
@@ -479,7 +507,7 @@ class TacticTestBase extends FlatSpec with Matchers with BeforeAndAfterEach with
   def listener(db: DBAbstraction)(proofId: Int)(tacticName: String, parentInTrace: Int, branch: Int): Seq[IOListener] = DBTools.listener(db)(proofId)(tacticName, parentInTrace, branch)
 
   /** Removes all whitespace for string comparisons in tests.
-    * @example{{{
+    * @example {{{
     *     "My string with     whitespace" should equal ("Mystring   with whitespace") (after being whiteSpaceRemoved)
     * }}}
     */

@@ -10,7 +10,9 @@ import edu.cmu.cs.ls.keymaerax.infrastruct.Augmentors._
 import edu.cmu.cs.ls.keymaerax.parser.{KeYmaeraXPrettyPrinter, SystemTestBase}
 import edu.cmu.cs.ls.keymaerax.parser.StringConverter._
 import edu.cmu.cs.ls.keymaerax.pt.ProvableSig
-import edu.cmu.cs.ls.keymaerax.tags.{SummaryTest, USubstTest, UsualTest}
+import edu.cmu.cs.ls.keymaerax.tags.{CheckinTest, SummaryTest, USubstTest, UsualTest}
+import edu.cmu.cs.ls.keymaerax.macros._
+import DerivationInfoAugmentors._
 import testHelper.KeYmaeraXTestTags
 import testHelper.CustomAssertions.withSafeClue
 import testHelper.KeYmaeraXTestTags.{AdvocatusTest, CoverageTest}
@@ -30,6 +32,7 @@ import scala.language.postfixOps
 @SummaryTest
 @UsualTest
 @USubstTest
+@CheckinTest
 class USubstTests extends SystemTestBase {
   val randomTrials = 50
   val randomComplexity = 20
@@ -287,7 +290,7 @@ class USubstTests extends SystemTestBase {
   it should "clash when using vacuous all quantifier forall x for a postcondition x>=0 with a free occurrence of the bound variable" taggedAs(KeYmaeraXTestTags.USubstTest,KeYmaeraXTestTags.SummaryTest) in {
     val x = Variable("x_",None,Real)
     val fml = GreaterEqual(x, Number(0))
-    val prem = ProvableInfo("vacuous all quantifier").provable
+    val prem = Ax.allV.provable
     val conc = Forall(Seq(x), fml)
     val s = USubst(Seq(SubstitutionPair(p0, fml)))
     //a [SubstitutionClashException] should be thrownBy
@@ -298,7 +301,7 @@ class USubstTests extends SystemTestBase {
   }
   it should "old clash when using vacuous all quantifier forall x for a postcondition x>=0 with a free occurrence of the bound variable" taggedAs(KeYmaeraXTestTags.USubstTest,KeYmaeraXTestTags.SummaryTest) in {
     val fml = GreaterEqual(x, Number(0))
-    val prem = AxiomInfo("vacuous all quantifier").formula
+    val prem = Ax.allV.formula
     val conc = Forall(Seq(x), fml)
     val s = USubst(Seq(SubstitutionPair(p0, fml)))
     //a [SubstitutionClashException] should be thrownBy
@@ -486,10 +489,10 @@ class USubstTests extends SystemTestBase {
     val y = Variable("y_", None, Real)
     val pr = AxiomInfo("DG differential ghost constant").provable
     val expected = "[{z'=z^5&z>=4}]z>=9 <-> \\exists y_ [{z'=z^5,y_'=z^3&z>=4}]z>=9".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c",Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"),Number(5)))) ::
-      SubstitutionPair(UnitPredicational("q",Except(y)), GreaterEqual(Variable("z"),Number(4))) ::
-      SubstitutionPair(UnitPredicational("p",Except(y)), GreaterEqual(Variable("z"),Number(9))) ::
-      SubstitutionPair(UnitFunctional("b",Except(y),Real) , Power(Variable("z"),Number(3))) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c",Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"),Number(5)))) ::
+      SubstitutionPair(UnitPredicational("q",Except(y::Nil)), GreaterEqual(Variable("z"),Number(4))) ::
+      SubstitutionPair(UnitPredicational("p",Except(y::Nil)), GreaterEqual(Variable("z"),Number(9))) ::
+      SubstitutionPair(UnitFunctional("b",Except(y::Nil),Real) , Power(Variable("z"),Number(3))) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -500,11 +503,11 @@ class USubstTests extends SystemTestBase {
     val y = Variable("y_", None, Real)
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}]z>=9 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=4}]z>=9".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c",Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"),Number(5)))) ::
-      SubstitutionPair(UnitPredicational("q",Except(y)), GreaterEqual(Variable("z"),Number(4))) ::
-      SubstitutionPair(UnitPredicational("p",Except(y)), GreaterEqual(Variable("z"),Number(9))) ::
-      SubstitutionPair(UnitFunctional("a",Except(y),Real) , Power(Variable("z"),Number(3))) ::
-      SubstitutionPair(UnitFunctional("b",Except(y),Real) , Power(Variable("z"),Number(2))) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c",Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"),Number(5)))) ::
+      SubstitutionPair(UnitPredicational("q",Except(y::Nil)), GreaterEqual(Variable("z"),Number(4))) ::
+      SubstitutionPair(UnitPredicational("p",Except(y::Nil)), GreaterEqual(Variable("z"),Number(9))) ::
+      SubstitutionPair(UnitFunctional("a",Except(y::Nil),Real) , Power(Variable("z"),Number(3))) ::
+      SubstitutionPair(UnitFunctional("b",Except(y::Nil),Real) , Power(Variable("z"),Number(2))) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -516,11 +519,11 @@ class USubstTests extends SystemTestBase {
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}]z>=9 <-> \\exists y_ [{z'=z^5,y_'=(z^3*y_)*y_+z^2&z>=4}]z>=9".asFormula
     a[CoreException] should be thrownBy {
-      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-        SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-        SubstitutionPair(UnitPredicational("p", Except(y)), GreaterEqual(Variable("z"), Number(9))) ::
-        SubstitutionPair(UnitFunctional("a", Except(y), Real), Times(Power(Variable("z"), Number(3)), y)) ::
-        SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+        SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+        SubstitutionPair(UnitPredicational("p", Except(y::Nil)), GreaterEqual(Variable("z"), Number(9))) ::
+        SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Times(Power(Variable("z"), Number(3)), y)) ::
+        SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
       val inst = pr(s)
     }
   }
@@ -531,11 +534,11 @@ class USubstTests extends SystemTestBase {
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}]z>=9 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+(z^2*y_^2)&z>=4}]z>=9".asFormula
     a[CoreException] should be thrownBy {
-      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-        SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-        SubstitutionPair(UnitPredicational("p", Except(y)), GreaterEqual(Variable("z"), Number(9))) ::
-        SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-        SubstitutionPair(UnitFunctional("b", Except(y), Real), Times(Power(Variable("z"), Number(2)), Power(y,Number(2)))) :: Nil)
+      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+        SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+        SubstitutionPair(UnitPredicational("p", Except(y::Nil)), GreaterEqual(Variable("z"), Number(9))) ::
+        SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+        SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Times(Power(Variable("z"), Number(2)), Power(y,Number(2)))) :: Nil)
       val inst = pr(s)
     }
   }
@@ -546,11 +549,11 @@ class USubstTests extends SystemTestBase {
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=y_}]z>=5 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=y_}]z>=5".asFormula
     a[CoreException] should be thrownBy {
-      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-        SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), y)) ::
-        SubstitutionPair(UnitPredicational("p", Except(y)), GreaterEqual(Variable("z"), Number(5))) ::
-        SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-        SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+        SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), y)) ::
+        SubstitutionPair(UnitPredicational("p", Except(y::Nil)), GreaterEqual(Variable("z"), Number(5))) ::
+        SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+        SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
       val inst = pr(s)
     }
   }
@@ -561,11 +564,11 @@ class USubstTests extends SystemTestBase {
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}]z>=y_ <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=4}]z>=y_".asFormula
     a[CoreException] should be thrownBy {
-      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-        SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-        SubstitutionPair(UnitPredicational("p", Except(y)), GreaterEqual(Variable("z"), y)) ::
-        SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-        SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+        SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+        SubstitutionPair(UnitPredicational("p", Except(y::Nil)), GreaterEqual(Variable("z"), y)) ::
+        SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+        SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
       val inst = pr(s)
     }
   }
@@ -575,11 +578,11 @@ class USubstTests extends SystemTestBase {
     val y = Variable("y_", None, Real)
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}]\\forall y_ z<=y_^2 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=4}] \\forall y_ z<=y_^2".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-      SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-      SubstitutionPair(UnitPredicational("p", Except(y)), Forall(Seq(y), LessEqual(Variable("z"), Power(y,Number(2))))) ::
-      SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-      SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+      SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+      SubstitutionPair(UnitPredicational("p", Except(y::Nil)), Forall(Seq(y), LessEqual(Variable("z"), Power(y,Number(2))))) ::
+      SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+      SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -590,11 +593,11 @@ class USubstTests extends SystemTestBase {
     val y = Variable("y_", None, Real)
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}][y_:=z;]z<=y_^2 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=4}][y_:=z;]z<=y_^2".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-      SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-      SubstitutionPair(UnitPredicational("p", Except(y)), Box(Assign(y,Variable("z")), LessEqual(Variable("z"), Power(y,Number(2))))) ::
-      SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-      SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+      SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+      SubstitutionPair(UnitPredicational("p", Except(y::Nil)), Box(Assign(y,Variable("z")), LessEqual(Variable("z"), Power(y,Number(2))))) ::
+      SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+      SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -606,23 +609,23 @@ class USubstTests extends SystemTestBase {
     val pr = AxiomInfo("DG differential ghost").provable
     val expected = "[{z'=z^5&z>=4}][{y_'=z}]z<=y_^2 <-> \\exists y_ [{z'=z^5,y_'=(z^3)*y_+z^2&z>=4}][{y_'=z}]z<=y_^2".asFormula
     a[CoreException] should be thrownBy {
-      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
-        SubstitutionPair(UnitPredicational("q", Except(y)), GreaterEqual(Variable("z"), Number(4))) ::
-        SubstitutionPair(UnitPredicational("p", Except(y)), Box(ODESystem(AtomicODE(DifferentialSymbol(y),Variable("z"))), LessEqual(Variable("z"), Power(y,Number(2))))) ::
-        SubstitutionPair(UnitFunctional("a", Except(y), Real), Power(Variable("z"), Number(3))) ::
-        SubstitutionPair(UnitFunctional("b", Except(y), Real), Power(Variable("z"), Number(2))) :: Nil)
+      val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("z")), Power(Variable("z"), Number(5)))) ::
+        SubstitutionPair(UnitPredicational("q", Except(y::Nil)), GreaterEqual(Variable("z"), Number(4))) ::
+        SubstitutionPair(UnitPredicational("p", Except(y::Nil)), Box(ODESystem(AtomicODE(DifferentialSymbol(y),Variable("z"))), LessEqual(Variable("z"), Power(y,Number(2))))) ::
+        SubstitutionPair(UnitFunctional("a", Except(y::Nil), Real), Power(Variable("z"), Number(3))) ::
+        SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Power(Variable("z"), Number(2))) :: Nil)
       val inst = pr(s)
     }
   }
 
   it should "possibly accept new vars if only bound in DGd postcondition as quantifiers" in {
     val y = Variable("y_", None, Real)
-    val pr = AxiomInfo("DGd diamond differential ghost constant").provable
+    val pr = Ax.DGCd.provable
     val expected = "<{t'=1}>\\forall y_ y_^2>=0<->\\forall y_ <{t'=1,y_'=1&true}>\\forall y_ y_^2>=0".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("t")), Number(1))) ::
-      SubstitutionPair(UnitPredicational("q", Except(y)), True) ::
-      SubstitutionPair(UnitPredicational("p", Except(y)), Forall(Seq(y), GreaterEqual(Power(y,Number(2)), Number(0)))) ::
-      SubstitutionPair(UnitFunctional("b", Except(y), Real), Number(1)) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("t")), Number(1))) ::
+      SubstitutionPair(UnitPredicational("q", Except(y::Nil)), True) ::
+      SubstitutionPair(UnitPredicational("p", Except(y::Nil)), Forall(Seq(y), GreaterEqual(Power(y,Number(2)), Number(0)))) ::
+      SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Number(1)) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -630,13 +633,13 @@ class USubstTests extends SystemTestBase {
 
   it should "possibly accept new vars if only bound in DGd postcondition as quantifiers, renamed" in {
     val y = Variable("y_", None, Real)
-    val pr = AxiomInfo("DGd diamond differential ghost constant").provable
+    val pr = Ax.DGCd.provable
     val expected = "<{t'=1}>\\forall y_ y_^2>=0<->\\forall y_ <{t'=1,y_'=1&true}>\\forall y_ y_^2>=0".asFormula
     val expected2 = "<{t'=1}>\\forall x x^2>=0<->\\forall x <{t'=1,x'=1&true}>\\forall x x^2>=0".asFormula
-    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y)), AtomicODE(DifferentialSymbol(Variable("t")), Number(1))) ::
-      SubstitutionPair(UnitPredicational("q", Except(y)), True) ::
-      SubstitutionPair(UnitPredicational("p", Except(y)), Forall(Seq(y), GreaterEqual(Power(y,Number(2)), Number(0)))) ::
-      SubstitutionPair(UnitFunctional("b", Except(y), Real), Number(1)) :: Nil)
+    val s = USubst(SubstitutionPair(DifferentialProgramConst("c", Except(y::Nil)), AtomicODE(DifferentialSymbol(Variable("t")), Number(1))) ::
+      SubstitutionPair(UnitPredicational("q", Except(y::Nil)), True) ::
+      SubstitutionPair(UnitPredicational("p", Except(y::Nil)), Forall(Seq(y), GreaterEqual(Power(y,Number(2)), Number(0)))) ::
+      SubstitutionPair(UnitFunctional("b", Except(y::Nil), Real), Number(1)) :: Nil)
     val inst = pr(s)
     inst shouldBe 'proved
     inst.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(expected))
@@ -936,7 +939,7 @@ class USubstTests extends SystemTestBase {
         SubstitutionPair(UnitFunctional("f_", AnyArg, Real), term1) ::
         SubstitutionPair(UnitFunctional("g_", AnyArg, Real), term2) ::
         SubstitutionPair(FuncOf(ctxt, DotTerm()), Minus(DotTerm(), Number(5))) :: Nil)
-      val pr = DerivedRuleInfo("CT term congruence").provable(s)
+      val pr = Ax.CTtermCongruence.provable(s)
       pr.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq(Equal(Minus(term1, Number(5)),
               Minus(term2, Number(5)))))
       pr.subgoals should be (List(Sequent(IndexedSeq(), IndexedSeq(fml))))

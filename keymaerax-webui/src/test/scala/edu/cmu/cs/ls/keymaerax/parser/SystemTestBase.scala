@@ -1,6 +1,6 @@
 package edu.cmu.cs.ls.keymaerax.parser
 
-import edu.cmu.cs.ls.keymaerax.btactics.ConfigurableGenerator
+import edu.cmu.cs.ls.keymaerax.btactics.{ConfigurableGenerator, DerivationInfoRegistry}
 import edu.cmu.cs.ls.keymaerax.core._
 import edu.cmu.cs.ls.keymaerax.pt.ProvableSig
 import org.scalactic.{AbstractStringUniformity, Uniformity}
@@ -9,11 +9,13 @@ import org.scalatest.{BeforeAndAfterEach, FlatSpec, Matchers}
 
 /**
  * Base class for KeYmaera X system tests without tactics need.
+  * @see [[edu.cmu.cs.ls.keymaerax.btactics.TacticTestBase]]
  */
 class SystemTestBase extends FlatSpec with Matchers with BeforeAndAfterEach {
 
   /** Test setup */
   override def beforeEach() = {
+    DerivationInfoRegistry.init
     PrettyPrinter.setPrinter(KeYmaeraXPrettyPrinter.pp)
     val generator = new ConfigurableGenerator[Formula]()
     KeYmaeraXParser.setAnnotationListener((p: Program, inv: Formula) =>
@@ -27,7 +29,7 @@ class SystemTestBase extends FlatSpec with Matchers with BeforeAndAfterEach {
 
 
   /** Removes all whitespace for string comparisons in tests.
-    * @example{{{
+    * @example {{{
     *     "My string with     whitespace" should equal ("Mystring   with whitespace") (after being whiteSpaceRemoved)
     * }}}
     */

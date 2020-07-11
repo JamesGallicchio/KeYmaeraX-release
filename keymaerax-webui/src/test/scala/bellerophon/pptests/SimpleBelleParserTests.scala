@@ -129,7 +129,7 @@ class SimpleBelleParserTests extends TacticTestBase {
   }
 
   it should "parse a built-in tactic that takes a whole list of arguments" in {
-    BelleParser("diffInvariant({`1=1`}, 1)") shouldBe (round trip TactixLibrary.diffInvariant(Seq("1=1".asFormula) : _*)(1))
+    BelleParser("diffInvariant({`1=1`}, 1)") shouldBe (round trip TactixLibrary.diffInvariant("1=1".asFormula)(1))
   }
 
   it should "Parse a loop tactic and print it back out" in {
@@ -291,65 +291,6 @@ class SimpleBelleParserTests extends TacticTestBase {
 
   it should "parse e | b & c" in {
     val result = BelleParser("andR(1) | andR(2) & andR(3)").asInstanceOf[EitherTactic]
-    result shouldBe (round trip result)
-    result.left shouldBe TactixLibrary.andR(1)
-    result.right.asInstanceOf[SeqTactic].left shouldBe TactixLibrary.andR(2)
-    result.right.asInstanceOf[SeqTactic].right shouldBe TactixLibrary.andR(3)
-  }
-
-  //endregion
-
-  //region After combinator
-
-  "After parser" should "parse e > e" in {
-    val result = BelleParser("andR(1) > andR(2)").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left shouldBe TactixLibrary.andR(1)
-    result.right shouldBe TactixLibrary.andR(2)
-  }
-
-  it should "parse after right-associative -- e > e > e parses to e > (e > e)" in {
-    val result = BelleParser("andR(1) > andR(2) > andR(3)").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left shouldBe TactixLibrary.andR(1)
-    result.right.asInstanceOf[AfterTactic].left shouldBe TactixLibrary.andR(2)
-    result.right.asInstanceOf[AfterTactic].right shouldBe TactixLibrary.andR(3)
-  }
-
-  it should "parse after right-associative when there are a bunch of parens" in {
-    val result = BelleParser("(andR(1)) > (andR(2)) > (andR(3))").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left shouldBe TactixLibrary.andR(1)
-    result.right.asInstanceOf[AfterTactic].left shouldBe TactixLibrary.andR(2)
-    result.right.asInstanceOf[AfterTactic].right shouldBe TactixLibrary.andR(3)
-  }
-
-  it should "parse e > (e > e)" in {
-    val result = BelleParser("andR(1) > (andR(2) > andR(3))").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left shouldBe TactixLibrary.andR(1)
-    result.right.asInstanceOf[AfterTactic].left shouldBe TactixLibrary.andR(2)
-    result.right.asInstanceOf[AfterTactic].right shouldBe TactixLibrary.andR(3)
-  }
-
-  it should "parse (e > e) > e" in {
-    val result = BelleParser("(andR(1) > andR(2)) > andR(3)").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left.asInstanceOf[AfterTactic].left shouldBe TactixLibrary.andR(1)
-    result.left.asInstanceOf[AfterTactic].right shouldBe TactixLibrary.andR(2)
-    result.right shouldBe TactixLibrary.andR(3)
-  }
-
-  it should "parse e & b > c" in {
-    val result = BelleParser("andR(1) & andR(2) > andR(3)").asInstanceOf[AfterTactic]
-    result shouldBe (round trip result)
-    result.left.asInstanceOf[SeqTactic].left shouldBe TactixLibrary.andR(1)
-    result.left.asInstanceOf[SeqTactic].right shouldBe TactixLibrary.andR(2)
-    result.right shouldBe TactixLibrary.andR(3)
-  }
-
-  it should "parse e > b & c" in {
-    val result = BelleParser("andR(1) > andR(2) & andR(3)").asInstanceOf[AfterTactic]
     result shouldBe (round trip result)
     result.left shouldBe TactixLibrary.andR(1)
     result.right.asInstanceOf[SeqTactic].left shouldBe TactixLibrary.andR(2)
@@ -657,15 +598,15 @@ class SimpleBelleParserTests extends TacticTestBase {
 
   "Expand" should "parse a simple definition expand" in {
     val tactic = BelleParser.parseWithInvGen("implyR(1) ; expand \"f()\"", None,
-      Declaration(scala.collection.immutable.Map((("f", None), (Some(Unit), Real, Some("3*2".asTerm), UnknownLocation)))))
+      Declaration(scala.collection.immutable.Map((("f", None), (Some(Unit), Real, None, Some("3*2".asTerm), UnknownLocation)))))
     tactic shouldBe TactixLibrary.implyR(1) & Expand(Function("f", None, Unit, Real), "f() ~> 3*2".asSubstitutionPair)
   }
 
   "ExpandAll" should "expand multiple definitions" in {
     val tactic = BelleParser.parseWithInvGen("expandAllDefs", None,
       Declaration(scala.collection.immutable.Map(
-        (("f", None), (Some(Unit), Real, Some("3*2".asTerm), UnknownLocation)),
-        (("g", None), (Some(Unit), Real, Some("4".asTerm), UnknownLocation))
+        (("f", None), (Some(Unit), Real, None, Some("3*2".asTerm), UnknownLocation)),
+        (("g", None), (Some(Unit), Real, None, Some("4".asTerm), UnknownLocation))
       )))
     tactic match {
       case ExpandAll(defs) => defs should contain theSameElementsAs("f() ~> 3*2".asSubstitutionPair :: "g() ~> 4".asSubstitutionPair :: Nil)
@@ -675,11 +616,11 @@ class SimpleBelleParserTests extends TacticTestBase {
   it should "topologically sort definitions" in {
     val tactic = BelleParser.parseWithInvGen("expandAllDefs", None,
       Declaration(scala.collection.immutable.Map(
-        (("h", None), (Some(Unit), Real, Some("g()*2".asTerm), UnknownLocation)),
-        (("i", None), (Some(Unit), Real, Some("1".asTerm), UnknownLocation)),
-        (("f", None), (Some(Unit), Real, Some("3*2".asTerm), UnknownLocation)),
-        (("g", None), (Some(Unit), Real, Some("f()+4".asTerm), UnknownLocation)),
-        (("j", None), (Some(Unit), Trafo, Some("x:=g()+i();".asProgram), UnknownLocation))
+        (("h", None), (Some(Unit), Real, None, Some("g()*2".asTerm), UnknownLocation)),
+        (("i", None), (Some(Unit), Real, None, Some("1".asTerm), UnknownLocation)),
+        (("f", None), (Some(Unit), Real, None, Some("3*2".asTerm), UnknownLocation)),
+        (("g", None), (Some(Unit), Real, None, Some("f()+4".asTerm), UnknownLocation)),
+        (("j", None), (Some(Unit), Trafo, None, Some("x:=g()+i();".asProgram), UnknownLocation))
       )))
     tactic match {
       case ExpandAll(defs) =>
@@ -733,14 +674,14 @@ class SimpleBelleParserTests extends TacticTestBase {
     }
 
     inside(BelleParser.parseWithInvGen("MR({`safeDist()>0`},1)", None,
-        Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))))) {
+        Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))))) {
       case adpt: AppliedDependentPositionTactic => adpt.pt should have (
         'inputs ("safeDist()>0".asFormula::Nil)
       )
     }
 
     inside(BelleParser.parseWithInvGen("MR({`safeDist()>0`},1)", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))), expandAll = true)) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))), expandAll = true)) {
       case SeqTactic(ExpandAll(substs), adpt: AppliedDependentPositionTactic) =>
         substs should contain theSameElementsAs "safeDist() ~> y".asSubstitutionPair :: Nil
         adpt.pt should have ('inputs ("y>0".asFormula::Nil))
@@ -749,14 +690,14 @@ class SimpleBelleParserTests extends TacticTestBase {
 
   it should "expand definitions in the middle of parsing only when asked to" in {
     inside(BelleParser.parseWithInvGen("useLemma({`Lemma`},{`prop`}); MR({`safeDist()>0`},1)", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))))) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))))) {
       case SeqTactic(_, adpt: AppliedDependentPositionTactic) => adpt.pt should have (
         'inputs ("safeDist()>0".asFormula::Nil)
       )
     }
 
     inside(BelleParser.parseWithInvGen("useLemma({`Lemma`},{`prop`}); MR({`safeDist()>0`},1)", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))), expandAll = true)) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))), expandAll = true)) {
       case SeqTactic(ExpandAll(substs), SeqTactic(_, adpt: AppliedDependentPositionTactic)) =>
         substs should contain theSameElementsAs "safeDist() ~> y".asSubstitutionPair :: Nil
         adpt.pt should have ('inputs ("y>0".asFormula::Nil))
@@ -769,12 +710,12 @@ class SimpleBelleParserTests extends TacticTestBase {
     }
 
     inside(BelleParser.parseWithInvGen("hideL('L=={`s=safeDist()`})", None,
-        Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))))) {
+        Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))))) {
       case apt: AppliedPositionTactic => apt.locator shouldBe Find.FindL(0, Some("s=safeDist()".asFormula))
     }
 
     inside(BelleParser.parseWithInvGen("hideL('L=={`s=safeDist()`})", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))), expandAll = true)) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))), expandAll = true)) {
       case SeqTactic(ExpandAll(substs), apt: AppliedPositionTactic) =>
         substs should contain theSameElementsAs "safeDist() ~> y".asSubstitutionPair :: Nil
         apt.locator shouldBe Find.FindL(0, Some("s=y".asFormula))
@@ -787,12 +728,12 @@ class SimpleBelleParserTests extends TacticTestBase {
     }
 
     inside(BelleParser.parseWithInvGen("hideL(-2=={`s=safeDist()`})", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))))) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))))) {
       case apt: AppliedPositionTactic => apt.locator shouldBe Fixed(-2, Nil, Some("s=safeDist()".asFormula))
     }
 
     inside(BelleParser.parseWithInvGen("hideL(-2=={`s=safeDist()`})", None,
-      Declaration(Map(("safeDist", None) -> (None, Real, Some("y".asTerm), null))), expandAll = true)) {
+      Declaration(Map(("safeDist", None) -> (None, Real, None, Some("y".asTerm), null))), expandAll = true)) {
       case SeqTactic(ExpandAll(substs), apt: AppliedPositionTactic) =>
         substs should contain theSameElementsAs "safeDist() ~> y".asSubstitutionPair :: Nil
         apt.locator shouldBe Fixed(-2, Nil, Some("s=y".asFormula))

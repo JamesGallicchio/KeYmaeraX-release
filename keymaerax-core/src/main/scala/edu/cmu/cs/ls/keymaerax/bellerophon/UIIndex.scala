@@ -8,9 +8,10 @@ import java.lang.Number
 
 import edu.cmu.cs.ls.keymaerax.infrastruct.Augmentors._
 import edu.cmu.cs.ls.keymaerax.infrastruct.ExpressionTraversal.{ExpressionTraversalFunction, StopTraversal}
-import edu.cmu.cs.ls.keymaerax.btactics.{DerivationInfo}
+import edu.cmu.cs.ls.keymaerax.btactics.DerivationInfoRegistry
 import edu.cmu.cs.ls.keymaerax.core._
 import edu.cmu.cs.ls.keymaerax.infrastruct._
+import edu.cmu.cs.ls.keymaerax.macros.DerivationInfo
 import org.apache.logging.log4j.scala.Logger
 
 import scala.annotation.tailrec
@@ -18,7 +19,7 @@ import scala.annotation.tailrec
 /**
   * User-Interface Axiom/Tactic Index: Indexing data structure for all canonically applicable (derived) axioms/rules/tactics in User-Interface.
   * @author aplatzer
-  * @see [[edu.cmu.cs.ls.keymaerax.btactics.AxiomIndex]]
+  * @see [[edu.cmu.cs.ls.keymaerax.btactics.AxIndex]]
   */
 object UIIndex {
   private val logger = Logger(UIIndex.getClass)

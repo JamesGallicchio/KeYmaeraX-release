@@ -9,7 +9,7 @@
 package edu.cmu.cs.ls.keymaerax.lemma
 
 import edu.cmu.cs.ls.keymaerax.{Configuration, lemma}
-import edu.cmu.cs.ls.keymaerax.btactics.{DerivedAxiomInfo, DerivedRuleInfo}
+import edu.cmu.cs.ls.keymaerax.macros._
 import edu.cmu.cs.ls.keymaerax.core._
 import edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXExtendedLemmaParser
 import edu.cmu.cs.ls.keymaerax.pt._
@@ -87,7 +87,7 @@ object Lemma {
   * Lemmas are named Provables, supported by some evidence of how they came about.
   * The soundness-critical part in a lemma is its provable fact, which can only be obtained from the prover core.
  *
-  * @example{{{
+  * @example {{{
   * // prove a lemma
   * val proved = TactixLibrary.proveBy(
   *    Sequent(IndexedSeq(), IndexedSeq("true | x>5".asFormula)),

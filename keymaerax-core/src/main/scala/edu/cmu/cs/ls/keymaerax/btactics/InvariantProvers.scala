@@ -54,13 +54,21 @@ object InvariantProvers {
         USubst(bounds.map(xi=> {i=i+1; SubstitutionPair(DotTerm(Real,Some(i)), xi)}))
       val jj: Formula = KeYmaeraXParser.formulaParser("jjl(" + subst.subsDefsInput.map(sp=>sp.what.prettyString).mkString(",") + ")")
       SearchAndRescueAgain(jj :: Nil,
-        //@todo OnAll(ifThenElse(shape [a]P, chase(1.0) , skip)) instead of | to chase away modal postconditions
-        loop(subst(jj))(pos) < (nil, nil, chase(pos) & OnAll(chase(pos ++ PosInExpr(1::Nil)) | skip)),
+        loop(subst(jj))(pos) < (nil, nil, chase(pos) & OnAll(
+          Idioms.doIf(
+            (pr: ProvableSig) => pr.subgoals.headOption.exists(_.sub(pos ++ PosInExpr(1::Nil)) match {
+              case Some(Box(_, _)) => true
+              case _ => false
+            }))(
+            //@todo chase will not always make progress, e.g., in [...][x:=x+1;][x'=2]P
+            chase(pos ++ PosInExpr(1::Nil))
+          )
+        )),
         feedOneAfterTheOther(cand),
         //@todo switch to quickstop mode
         OnAll(master()) & done
       )
-    case e => throw new BelleThrowable("Wrong shape to generate an invariant for " + e + " at position " + pos)
+    case e => throw new TacticInapplicableFailure("Wrong shape to generate an invariant for " + e + " at position " + pos)
   })
 
   private def feedOneAfterTheOther[A<:Expression](gen: Iterator[A]) : (ProvableSig,ProverException)=>Seq[Expression] = {
@@ -68,7 +76,7 @@ object InvariantProvers {
       if (gen.hasNext)
         gen.next() :: Nil
       else
-        throw new BelleThrowable("loopSR ran out of loop invariant candidates")
+        throw new BelleNoProgress("loopSR ran out of loop invariant candidates")
   }
 
 
@@ -193,19 +201,26 @@ object InvariantProvers {
               c :: True :: Nil
             case None =>
               if (sawODE)
-                throw new BelleThrowable("loopPostMaster: Invariant generator ran out of ideas for\n" + pr.prettyString)
+                throw new BelleNoProgress("loopPostMaster: Invariant generator ran out of ideas for\n" + pr.prettyString)
               else
-                throw new BelleThrowable("loopPostMaster: No more progress for lack of ODEs in the loop\n" + pr.prettyString)
+                throw new BelleNoProgress("loopPostMaster: No more progress for lack of ODEs in the loop\n" + pr.prettyString)
           }
         }
       }
 
       SearchAndRescueAgain(jjl :: jja :: Nil,
-        //@todo OnAll(ifThenElse(shape [a]P, chase(1.0) , skip)) instead of | to chase away modal postconditions
         loop(subst(jj))(pos) < (nil, nil,
           cut(jja) <(
             /* use jja() |- */
-            chase(pos) & OnAll(unfoldProgramNormalize) & OnAll(?(chase(pos ++ PosInExpr(1::Nil))) & ?(QE() & done))
+            chase(pos) & OnAll(unfoldProgramNormalize) & OnAll(
+              Idioms.doIf(_.subgoals.headOption.exists(_.sub(pos ++ PosInExpr(1::Nil)) match {
+                case Some(Box(_, _)) => true
+                case _ => false
+              }))(
+                //@todo chase will not always make progress, e.g., in [...][x:=x+1;][x'=2]P
+                chase(pos ++ PosInExpr(1::Nil))
+              ) & ?(QE)
+            )
             ,
             /* show |- jja() is postponed since only provable when eventually jja()~>True instantiated */
             cohide('Rlast, jja)
@@ -216,7 +231,7 @@ object InvariantProvers {
         finishOff
       )
 
-    case e => throw new BelleThrowable("Wrong shape to generate an invariant for " + e + " at position " + pos)
+    case e => throw new TacticInapplicableFailure("Wrong shape to generate an invariant for " + e + " at position " + pos)
   })
 
 }

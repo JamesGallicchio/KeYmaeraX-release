@@ -102,6 +102,13 @@ class DifferentialTests extends TacticTestBase {
       subgoals.loneElement shouldBe "A>0&A>1, B=1, C=2&D=3, x_0=4 ==> x>0 -> x>0".asSequent
   }
 
+  it should "retain negated context" in withQE { _ =>
+    proveBy("A>0&A>1, C=2&D=3, x=4 ==> [{x'=1&x>0}]x>0, !B=1".asSequent, dW(1)).
+      subgoals.loneElement shouldBe "==> x>0 & A>0 & A>1 & C=2 & D=3 & !!B=1 -> x>0".asSequent
+    proveBy("A>0&A>1, C=2&D=3 ==> [{x'=1&x>0}]x>0, !B=1, !x=4".asSequent, DifferentialTactics.diffWeakenPlus(1)).
+      subgoals.loneElement shouldBe "A>0&A>1, C=2&D=3 ==> !B=1, !x_0=4, x>0 -> x>0".asSequent
+  }
+
   it should "keep initial conditions" in withQE { _ =>
     proveBy(("dx_0^2+dy_0^2=1&x^2+y^2>0, dx_0=dx, dy_0=dy, old=dy*x-(dx-1)*y " +
       " ==> [{x'=dx-1,y'=dy,dx'=0,dy'=0 & dx=dx_0&dy=dy_0&dy*x-(dx-1)*y=old}](dx^2+dy^2=1 & x^2+y^2>0)").asSequent, dW(1)).
@@ -113,9 +120,24 @@ class DifferentialTests extends TacticTestBase {
       " ==> dx=dx_0&dy=dy_0&dy*x-(dx-1)*y=old -> dx^2+dy^2=1&x^2+y^2>0").asSequent
   }
 
+  it should "support box assumptions" in withQE { _ =>
+    proveBy(
+      """x_0<=m, A()>=0, b()>0, true, t=0,
+        |[{x'=v,v'=A(),t'=1&v>=0&t<=ep()}][{x'=v,v'=-b()&true}]x<=m,
+        |t_1=0, v_0>=0&t_1<=ep(), time_=0, t_1=t_0, v_0=v, x_0=x
+        |==>
+        |[{x'=v,v'=A(),t_0'=1,time_'=1&(v>=0&t_0<=ep())&time_>=0&t_0=time_+t_1&v=A()*time_+v_0&x=1/2*A()*time_^2+time_*v_0+x_0}]x<=m""".stripMargin.asSequent,
+      DifferentialTactics.diffWeakenPlus(1)).subgoals.loneElement shouldBe
+      """x_0<=m, A()>=0, b()>0, true, t=0, t_1=0, v_0>=0&t_1<=ep(), time__0=0
+        |==>
+        |(v>=0&t_0<=ep())&time_>=0&t_0=time_+t_1&v=A()*time_+v_0&x=1/2*A()*time_^2+time_*v_0+x_0->x<=m""".stripMargin.asSequent
+  }
+
   it should "work if not sole formula in succedent" in withQE { _ =>
-    val result = proveBy("A>0&A>1, B=1, C=2&D=3, x=4 ==> Blah=1, [{x'=1&x>2}]x>0, Blub=3".asSequent, dW(2))
-    result.subgoals.loneElement shouldBe "A>0&A>1, B=1, C=2&D=3, x_0=4 ==> Blah=1, Blub=3, x>2 -> x>0".asSequent
+    proveBy("A>0&A>1, B=1, C=2&D=3, x=4 ==> Blah=1, [{x'=1&x>2}]x>0, Blub=3".asSequent, dW(2)).subgoals.
+      loneElement shouldBe "==> x>2 & A>0 & A>1 & B=1 & C=2 & D=3 & !Blah=1 & !Blub=3 -> x>0".asSequent
+    proveBy("A>0&A>1, B=1, C=2&D=3, x=4 ==> Blah=1, [{x'=1&x>2}]x>0, Blub=3".asSequent, DifferentialTactics.diffWeakenPlus(2)).subgoals.
+      loneElement shouldBe "A>0&A>1, B=1, C=2&D=3, x_0=4 ==> Blah=1, Blub=3, x>2 -> x>0".asSequent
   }
 
   "Differential effect" should "introduce a differential assignment" in {
@@ -129,12 +151,12 @@ class DifferentialTests extends TacticTestBase {
   }
 
   it should "introduce differential assignments whatever the names (manual useAt)" in {
-    val result = proveBy("[{z'=5, y'=z}]z>0".asFormula, useAt("DE differential effect (system)")(1))
+    val result = proveBy("[{z'=5, y'=z}]z>0".asFormula, useAt(Ax.DEs)(1))
     result.subgoals.loneElement shouldBe "==> [{y'=z,z'=5}][z':=5;]z>0".asSequent
   }
 
   it should "introduce differential assignments in long cases whatever the names (manual useAt)" in {
-    val result = proveBy("[{z'=5, y'=z, u'=v}]z>0".asFormula, useAt("DE differential effect (system)")(1))
+    val result = proveBy("[{z'=5, y'=z, u'=v}]z>0".asFormula, useAt(Ax.DEs)(1))
     result.subgoals.loneElement shouldBe "==> [{y'=z,u'=v,z'=5}][z':=5;]z>0".asSequent
   }
 
@@ -323,6 +345,14 @@ class DifferentialTests extends TacticTestBase {
     result.subgoals.loneElement shouldBe "x>=5 ==> [x:=x+1;](true->x>=5&[{x'=2}](x>=5)')".asSequent
   }
 
+  it should "fail constification in context if ODE consts are bound outside" taggedAs KeYmaeraXTestTags.SummaryTest in {
+    proveBy("x>=5, y=2 ==> [x:=x+1;][{x'=y}]x>=y".asSequent, DifferentialTactics.diffInd('full)(1, 1::Nil)).
+      subgoals.loneElement shouldBe "x>=5, y()=2 ==> [x:=x+1;](true->x>=y()&y()>=0)".asSequent
+    the [BelleProofSearchControl] thrownBy proveBy("x>=5 ==> [y:=2;x:=x+1;][{x'=y}]x>=y".asSequent,
+      DifferentialTactics.diffInd('full)(1, 1::Nil)) should
+      have message "Unable to constify in context ReplContext{{[y:=2;x:=x+1;][{x'=y&true}]x>=y at .1}}, because it binds y"
+  }
+
   it should "autoprove x>=5 -> [{x'=2}]x>=5 in context" taggedAs KeYmaeraXTestTags.SummaryTest in {
     val result = proveBy("x>=5 ==> [x:=x+1;][{x'=2}]x>=5".asSequent, DifferentialTactics.diffInd('full)(1, 1::Nil))
     result.subgoals.loneElement shouldBe "x>=5 ==> [x:=x+1;](true->x>=5&2>=0)".asSequent
@@ -370,46 +400,49 @@ class DifferentialTests extends TacticTestBase {
 
   it should "report when invariant not true in the beginning" in withQE { _ =>
     the [BelleThrowable] thrownBy proveBy("x<0 ==> [{x'=-x}]x>0".asSequent, dI()(1)) should
-      have message "[Bellerophon Runtime] Differential invariant must hold in the beginning: expected to have proved, but got open goals"
+      have message "Differential invariant must hold in the beginning: expected to have proved, but got open goals"
   }
 
   it should "report when not an invariant" in withQE { _ =>
     the [BelleThrowable] thrownBy proveBy("x>0 ==> [{x'=-x}]x>0".asSequent, dI()(1)) should
-      have message "[Bellerophon Runtime] Differential invariant must be preserved: expected to have proved, but got open goals"
+      have message "Differential invariant must be preserved: expected to have proved, but got open goals"
   }
 
   it should "report when failing to derive postcondition" in withQE { _ =>
     the [BelleThrowable] thrownBy proveBy("x>0, f(x,y)>0 ==> [{x'=2}]f(x,y)>0".asSequent, dI()(1)) should
-      have message """[Bellerophon Runtime] [Bellerophon User-Generated Message] After deriving, the right-hand sides of ODEs cannot be substituted into the postcondition
-                     |The error occurred on
+      have message """After deriving, the right-hand sides of ODEs cannot be substituted into the postcondition
                      |Provable{
                      |   -1:  x>0	Greater
-                     |   -2:  f((x,y()))>0	Greater
+                     |   -2:  f(x,y())>0	Greater
                      |   -3:  true	True$
-                     |==> 1:  [{x'=2&true}](f((x,y()))>0)'	Box
+                     |==> 1:  [{x'=2&true}](f(x,y())>0)'	Box
                      |  from
                      |   -1:  x>0	Greater
-                     |   -2:  f((x,y()))>0	Greater
+                     |   -2:  f(x,y())>0	Greater
                      |   -3:  true	True$
-                     |==> 1:  [{x'=2&true}][x':=2;](f((x,y())))'>=0	Box}""".stripMargin
+                     |==> 1:  [{x'=2&true}][x':=2;](f(x,y()))'>=0	Box}""".stripMargin
   }
 
-  //@todo unsupported so far (substitution clash in derive)
-  it should "prove with quantified postconditions" ignore withMathematica { _ =>
+
+  it should "FEATURE_REQUEST: prove with quantified postconditions" taggedAs TodoTest in withMathematica { _ =>
     proveBy("[{x'=3}]\\exists y y<=x".asFormula, dI()(1)) shouldBe 'proved
   }
 
   it should "expand special functions" in withQE { _ =>
     the [BelleThrowable] thrownBy proveBy("[{x'=3}]abs(x)>=0".asFormula, dI()(1)) should have message
-      """[Bellerophon Runtime] Differential invariant must be preserved: expected to have proved, but got open goals""".stripMargin
+      "Differential invariant must be preserved: expected to have proved, but got open goals"
   }
 
   it should "work when not sole formula in succedent" in withQE { _ =>
     proveBy("x>=0 ==> [{x'=1}]x>=0, false".asSequent, dI()(1)) shouldBe 'proved
   }
 
-  //@todo unsupported so far (substitution clash)
-  "Derive" should "derive quantifiers" ignore {
+  it should "not be applicable on non-FOL postcondition" in withQE { _ =>
+    the [TacticInapplicableFailure] thrownBy proveBy("x>=0, y>=1 ==> [{x'=2}][{x'=5&y>=2} ++ y:=y+1;](x>=0 & y>=2)".asSequent, dI()(1)) should
+      have message "diffInd only applicable to FOL postconditions, but got [{x'=5&y>=2}++y:=y+1;](x>=0&y>=2)"
+  }
+
+  "Derive" should "FEATURE_REQUEST: derive quantifiers" taggedAs TodoTest in {
     proveBy("(\\exists x x>=0)'".asFormula, derive(1)).subgoals.loneElement shouldBe "==> \\exists x x'>=0".asSequent
   }
 
@@ -640,7 +673,7 @@ class DifferentialTests extends TacticTestBase {
   }
 
   it should "cut in multiple formulas" in withQE { _ =>
-    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, dC("v>=0".asFormula, "x>=old(x)".asFormula)(1))
+    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, dC("v>=0".asFormula :: "x>=old(x)".asFormula :: Nil)(1))
     result.subgoals should have size 3
     result.subgoals(0) shouldBe "v>=0, x_0>0, x_0=x ==> [{x'=v,v'=2 & (true & v>=0) & x>=x_0}]x>=0".asSequent
     result.subgoals(1) shouldBe "v>=0, x>0 ==> [{x'=v,v'=2}]v>=0".asSequent
@@ -649,7 +682,7 @@ class DifferentialTests extends TacticTestBase {
 
   it should "not duplicate cuts" in withQE { _ =>
     val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent,
-      dC("v>=0".asFormula, "v>=0".asFormula)(1) <(dC("v>=0".asFormula)(1), skip))
+      dC("v>=0".asFormula :: "v>=0".asFormula :: Nil)(1) <(dC("v>=0".asFormula)(1), skip))
     result.subgoals should have size 2
     result.subgoals(0) shouldBe "v>=0, x>0 ==> [{x'=v,v'=2 & true & v>=0}]x>=0".asSequent
     result.subgoals(1) shouldBe "v>=0, x>0 ==> [{x'=v,v'=2}]v>=0".asSequent
@@ -657,7 +690,7 @@ class DifferentialTests extends TacticTestBase {
 
   it should "not duplicate old cuts" in withQE { _ =>
     val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent,
-      dC("v>=old(v)".asFormula, "v>=old(v)".asFormula)(1) <(dC("v>=old(v)".asFormula)(1), skip))
+      dC("v>=old(v)".asFormula :: "v>=old(v)".asFormula :: Nil)(1) <(dC("v>=old(v)".asFormula)(1), skip))
     result.subgoals should have size 2
     result.subgoals(0) shouldBe "v_0>=0, x>0, v_0=v ==> [{x'=v,v'=2 & true & v>=v_0}]x>=0".asSequent
     result.subgoals(1) shouldBe "v_0>=0, x>0, v_0=v ==> [{x'=v,v'=2}]v>=v_0".asSequent
@@ -675,9 +708,9 @@ class DifferentialTests extends TacticTestBase {
     result.subgoals.head shouldBe "y=1 ==> [x:=0;]\\forall y_0 (y_0=y -> \\forall x_0 (x_0=x -> [{x'=1,y'=-1 & true & (x>=x_0 & y<=y_0)}]x>=0))".asSequent
   }
 
-  it should "FEATURE_REQUEST: keep positioning stable in succedent" taggedAs(TodoTest) in withQE { _ =>
+  it should "FEATURE_REQUEST: keep positioning stable in succedent" taggedAs TodoTest in withQE { _ =>
     //@todo useAt has unstable positioning (when fixing: some tactics - e.g., ODE - may change midway from using pos to 'Rlast as a workaround)
-    val result = proveBy("x=0 ==> [{x'=y}]x>=-1, !y<0".asSequent, dC("x>=0".asFormula)(2))
+    val result = proveBy("x=0 ==> !y!=3, [{x'=y}]x>=-1, !y<0".asSequent, dC("x>=0".asFormula)(2))
     result.subgoals(0) shouldBe "x=0 ==> !y!=3, [{x'=y & true & x>=0}]x>=-1, !y<0".asSequent
     result.subgoals(1) shouldBe "x=0 ==> !y!=3, [{x'=y}]x>=0, !y<0".asSequent
   }
@@ -758,7 +791,7 @@ class DifferentialTests extends TacticTestBase {
   }
 
   it should "cut in multiple formulas" in withQE { _ =>
-    val result = proveBy("v>=0, x>0 ==> <{x'=v,v'=2}>x>=0".asSequent, dC("v>=0".asFormula, "x>=old(x)".asFormula)(1))
+    val result = proveBy("v>=0, x>0 ==> <{x'=v,v'=2}>x>=0".asSequent, dC("v>=0".asFormula :: "x>=old(x)".asFormula :: Nil)(1))
     result.subgoals should have size 3
     result.subgoals(0) shouldBe "v>=0, x_0>0, x_0=x ==> <{x'=v,v'=2 & (true & v>=0) & x>=x_0}>x>=0".asSequent
     result.subgoals(1) shouldBe "v>=0, x>0 ==> [{x'=v,v'=2}]v>=0".asSequent
@@ -839,12 +872,12 @@ class DifferentialTests extends TacticTestBase {
   }
 
   it should "cut in multiple formulas" in withQE { _ =>
-    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, diffInvariant("v>=0".asFormula, "x>0".asFormula)(1))
+    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, diffInvariant("v>=0".asFormula :: "x>0".asFormula :: Nil)(1))
     result.subgoals.loneElement shouldBe "v>=0, x>0 ==> [{x'=v,v'=2 & (true & v>=0) & x>0}]x>=0".asSequent
   }
 
   it should "cut in multiple formulas with old" in withQE { _ =>
-    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, diffInvariant("v>=0".asFormula, "x>=old(x)".asFormula)(1))
+    val result = proveBy("v>=0, x>0 ==> [{x'=v,v'=2}]x>=0".asSequent, diffInvariant("v>=0".asFormula :: "x>=old(x)".asFormula :: Nil)(1))
     result.subgoals.loneElement shouldBe "v>=0, x_0>0, x_0=x ==> [{x'=v,v'=2 & (true & v>=0) & x>=x_0}]x>=0".asSequent
   }
 
@@ -855,11 +888,11 @@ class DifferentialTests extends TacticTestBase {
 
   it should "fail if any of the formulas is not an invariant" in withQE { _ =>
     a [BelleThrowable] should be thrownBy proveBy("x>0 ==> [{x'=v,v'=2}]x>=0".asSequent,
-      diffInvariant("v>=0".asFormula, "x>=old(x)".asFormula)(1))
+      diffInvariant("v>=0".asFormula :: "x>=old(x)".asFormula :: Nil)(1))
   }
 
   it should "let us directly prove variable x+y^2*3-z = x+y^2*3-z by abbreviation" in withQE { _ =>
-    proveBy("x+y^2*3-z=x+y^2*3-z".asFormula, let(FuncOf(Function("s_",None,Unit,Real),Nothing), "x+y^2*3-z".asTerm, by(DerivedAxioms.equalReflex))) shouldBe 'proved
+    proveBy("x+y^2*3-z=x+y^2*3-z".asFormula, let(FuncOf(Function("s_",None,Unit,Real),Nothing), "x+y^2*3-z".asTerm, by(Ax.equalReflexive))) shouldBe 'proved
   }
 
   it should "prove const [x':=5;](x+c())'>=0 directly" in withQE { _ =>
@@ -967,16 +1000,21 @@ class DifferentialTests extends TacticTestBase {
     def checkSequentTactic(expected: Sequent) = new SingleGoalDependentTactic("mock") {
       override def computeExpr(sequent: Sequent): BelleExpr = {
         sequent shouldBe expected
-        throw BelleUserGeneratedError("Success: sequent as expected, now aborting")
+        throw new BelleAbort("Success", "Sequent as expected, now aborting")
       }
     }
 
     forEvery (dconstifyTests) {
       (name, input, expectedResult) => withClue(name) {
-        the [BelleUserGeneratedError] thrownBy proveBy(input.asSequent, DifferentialTactics.Dconstify(
-          checkSequentTactic(expectedResult.asSequent))(1)) should have message "[Bellerophon Runtime] [Bellerophon User-Generated Message] Success: sequent as expected, now aborting"
+        the [BelleAbort] thrownBy proveBy(input.asSequent, DifferentialTactics.Dconstify(
+          checkSequentTactic(expectedResult.asSequent))(1)) should have message "Sequent as expected, now aborting"
       }
     }
+  }
+
+  it should "not constify bound postcondition" in {
+    proveBy("x>=0, y>=1, z=2 ==> [{x'=5&y>=1}][{x'=z} ++ y:=z+1;](x>=0 & y>=1)".asSequent, DifferentialTactics.Dconstify(skip)(1)).
+      subgoals.loneElement shouldBe "x>=0, y>=1, z()=2 ==> [{x'=5&y>=1}][{x'=z()}++y:=z()+1;](x>=0&y>=1)".asSequent
   }
 
   "DG" should "add y'=1 to [x'=2]x>0" in {
@@ -1084,10 +1122,7 @@ class DifferentialTests extends TacticTestBase {
 
   it should "give useful error messages on shape mismatch" in {
     the [BelleThrowable] thrownBy proveBy("[{x'=2}]x>0".asFormula, dG("{t'=x*t*x^2}".asDifferentialProgram, None)(1) & existsR("0".asTerm)(1)) should
-      have message """[Bellerophon Runtime] Tactic ANON(1) is not applicable for
-                     |    [{x'=2&true}]x>0
-                     |at position 1
-                     |because x*y_*x^2 is not of the expected shape a*y+b, please provide a differential program of the shape y'=a*y+b.""".stripMargin
+      have message "x*y_*x^2 is not of the expected shape a*y+b, please provide a differential program of the shape y'=a*y+b."
   }
 
   "DA" should "add y'=1 to [x'=2]x>0" in withQE { _ =>
@@ -1339,7 +1374,7 @@ class DifferentialTests extends TacticTestBase {
     result.subgoals.loneElement shouldBe "x>0 ==> \\forall t_ (t_>=0 -> t_+x>0)".asSequent
   }
 
-  it should "solve diamond explicit-form ODE" ignore withQE { _ =>
+  it should "FEATURE_REQUEST: solve diamond explicit-form ODE" taggedAs TodoTest in withQE { _ =>
     val result = proveBy("x>0 ==> <{x'=0*x+1}>x>0".asSequent, solve(1))
     result.subgoals.loneElement shouldBe "x>0 ==> \\exists t_ (t_>=0 & t_+x>0)".asSequent
   }
@@ -1392,6 +1427,22 @@ class DifferentialTests extends TacticTestBase {
   it should "solve double integrator with sum of constants" in withQE { _ =>
     val result = proveBy("y<b, x<=0, Y()>=0, Z()<Y() ==> [{y'=x, x'=-Y()+Z()}]y<b".asSequent, solve(1))
     result.subgoals.loneElement shouldBe "y<b, x<=0, Y()>=0, Z()<Y() ==> \\forall t_ (t_>=0 -> (-Y()+Z())*(t_^2/2)+x*t_+y<b)".asSequent
+  }
+
+  "endODEHeuristic" should "instantiate with duration in positive polarity in succedent" in withQE { _ =>
+    proveBy("x>=0 ==> [{x'=1 & x<=5}]x>=0".asSequent, solve(1) & DifferentialTactics.endODEHeuristic).subgoals.loneElement shouldBe "x>=0 ==> \\forall t_ (t_>=0->t_+x<=5->t_+x>=0)".asSequent
+  }
+
+  it should "not try to instantiate in negative polarity in succedent" in withQE { _ =>
+    proveBy(" ==> ![{x'=1 & x<=5}]x>=0".asSequent, solve(1, 0::Nil) & DifferentialTactics.endODEHeuristic).subgoals.loneElement shouldBe "==> !\\forall t_ (t_>=0->\\forall s_ (0<=s_&s_<=t_->s_+x<=5)->t_+x<=5&t_+x>=0)".asSequent
+  }
+
+  it should "instantiate in negative polarity in antecedent" in withQE { _ =>
+    proveBy("![{x'=1 & x<=5}]x>=0, x>=0 ==> ".asSequent, solve(-1, 0::Nil) & DifferentialTactics.endODEHeuristic).subgoals.loneElement shouldBe "!\\forall t_ (t_>=0->t_+x<=5->t_+x>=0), x>=0 ==> ".asSequent
+  }
+
+  it should "not try to instantiate in positive polarity in antecedent" in withQE { _ =>
+    proveBy("[{x'=1 & x<=5}]x>=0 ==> ".asSequent, solve(-1) & DifferentialTactics.endODEHeuristic).subgoals.loneElement shouldBe "\\forall t_ (t_>=0->\\forall s_ (0<=s_&s_<=t_->s_+x<=5)->t_+x<=5&t_+x>=0) ==> ".asSequent
   }
 
   "diffUnpackEvolutionDomainInitially" should "unpack the evolution domain of an ODE as fact at time zero" in {
@@ -1506,19 +1557,6 @@ class DifferentialTests extends TacticTestBase {
     proveBy("x>0 -> [{x'=x}]x>0".asFormula, implyR(1) & openDiffInd(1)) shouldBe 'proved
   }
 
-  "OUTDATED: Differential Variant" should "diff var a()>0 |- <{x'=a()}>x>=b()" in withQE { _ =>
-    proveBy(Sequent(IndexedSeq("a()>0".asFormula), IndexedSeq("<{x'=a()}>x>=b()".asFormula)), diffVar(1)) shouldBe 'proved
-  }
-
-  it should "diff var flat flight progress [function]" in withMathematica { _ =>
-    proveBy("b>0 -> \\exists d (d^2<=b^2 & <{x'=d}>x>=p())".asFormula, diffVar(1, 1::0::1::Nil)) shouldBe 'proved
-  }
-
-  it should "FEATURE_REQUEST: diff var flat flight progress [variable]" taggedAs (IgnoreInBuildTest,TodoTest) in withQE { _ =>
-    //@note test is supposed to fail until feature is implemented
-    proveBy("b>0 -> \\forall p \\exists d (d^2<=b^2 & <{x'=d}>x>=p)".asFormula, diffVar(1, 1::0::0::1::Nil)) shouldBe 'proved
-  }
-
   /**
     * Test cases for the Darboux ghost tactics
     */
@@ -1607,12 +1645,12 @@ class DifferentialTests extends TacticTestBase {
     TactixLibrary.proveBy(seq, DifferentialTactics.dgBarrier(1)) shouldBe 'proved
   }
 
-  it should "COMPATIBILITY: prove a strict barrier certificate 1 (Z3)" in withZ3 {qeTool =>
+  it should "COMPATIBILITY: prove a strict barrier certificate 1 (Z3)" taggedAs(TodoTest) in withZ3 {qeTool =>
     val seq = "(87*x^2)/200 - (7*x*y)/180 >= -(209*y^2)/1080 + 10 ==> [{x'=(5*x)/4 - (5*y)/6, y'=(9*x)/4 + (5*y)/2}] (87*x^2)/200 - (7*x*y)/180>= -(209*y^2)/1080 + 10 ".asSequent
     TactixLibrary.proveBy(seq, DifferentialTactics.dgBarrier(1)) shouldBe 'proved
   }
 
-  it should "COMPATIBILITY: prove a strict barrier certificate 2 (Z3)" in withZ3 {qeTool =>
+  it should "COMPATIBILITY: prove a strict barrier certificate 2 (Z3)" taggedAs(TodoTest) in withZ3 {qeTool =>
     val seq = "(23*x^2)/11 + (34*x*y)/11 + (271*y^2)/66 - 5 <= 0 ==> [{x'=(x/2) + (7*y)/3 , y'=-x - y}] (23*x^2)/11 + (34*x*y)/11 + (271*y^2)/66 - 5<=0".asSequent
     TactixLibrary.proveBy(seq, DifferentialTactics.dgBarrier(1)) shouldBe 'proved
   }
@@ -1700,6 +1738,18 @@ class DifferentialTests extends TacticTestBase {
     // differential invariant
     prv.subgoals(1).succ.loneElement shouldBe "t<=1/2&x>=1&x<=1+3*t->min((x,0+3*1-x))>0".asFormula
     proveBy(prv, Idioms.<(QE, QE)) shouldBe 'proved
+  }
+
+  "DCC" should "correctly apply in succ" in {
+    val seq = "G(x) ==> S(x), [{x'=f(x)&r(x)}](p(x)->q(x)), T(x)".asSequent
+    val res = proveBy(seq, dCC(2))
+    res.subgoals.length shouldBe 2
+    res.subgoals(0) shouldBe
+      Sequent(IndexedSeq("G(x)".asFormula), "S(x),[{x'=f(x)&r(x)&p(x)}]q(x),T(x)".split(",").map(_.asFormula).toIndexedSeq)
+    res.subgoals(1) shouldBe
+      Sequent("G(x_0),r(x),!p(x)".split(",").map(_.asFormula).toIndexedSeq,
+        "S(x_0),T(x_0),[{x'=f(x)&r(x)}](!p(x))".split(",").map(_.asFormula).toIndexedSeq)
+    // @todo: [[_.asSequent]] does not work here.
   }
 
   "Derive" should "correctly derive" taggedAs IgnoreInBuildTest in withMathematica { tool =>

@@ -53,13 +53,13 @@ class ModelplexTacticTests extends TacticTestBase {
 
     def modelPlex: DependentPositionTactic = chase(3, 3, (e:Expression) => e match {
       // no equational assignments
-      case Box(Assign(_, _), _) => "[:=] assign" :: "[:=] assign update" :: Nil
-      case Diamond(Assign(_, _), _) => "<:=> assign" :: "<:=> assign update" :: Nil
+      case Box(Assign(_, _), _) => Ax.assignbAxiom :: Ax.assignbup :: Nil
+      case Diamond(Assign(_, _), _) => Ax.assigndAxiom :: Ax.assigndup :: Nil
       // remove loops
-      case Diamond(Loop(_), _) => "<*> approx" :: Nil
+      case Diamond(Loop(_), _) => Ax.loopApproxd :: Nil
       // remove ODEs for controller monitor
-      case Diamond(ODESystem(_, _), _) => "DX diamond differential skip" :: Nil
-      case _ => AxiomIndex.axiomsFor(e)
+      case Diamond(ODESystem(_, _), _) => Ax.Dskipd :: Nil
+      case _ => AxIndex.axiomsFor(e)
     })
 
     val result = TactixLibrary.proveBy(modelplexInput, modelPlex(1))
@@ -78,8 +78,8 @@ class ModelplexTacticTests extends TacticTestBase {
     val (modelplexInput, _) = createMonitorSpecificationConjecture(model, Variable("x"))
 
     def modelPlex: DependentPositionTactic = chase(3, 3, (e:Expression) => e match {
-      case Diamond(Loop(_), _) => "<*> approx" :: Nil
-      case _ => AxiomIndex.axiomsFor(e)
+      case Diamond(Loop(_), _) => Ax.loopApproxd :: Nil
+      case _ => AxIndex.axiomsFor(e)
     })
 
     val result = proveBy(modelplexInput, modelPlex(1))
@@ -1075,13 +1075,13 @@ class ModelplexTacticTests extends TacticTestBase {
     val lemmaEntries = lemmas.map({ case (name, fml, tactic) =>
       val serializableTactic = db.extractSerializableTactic(fml, tactic)
       ParsedArchiveEntry(name, "lemma", "", "", defs(fml), fml,
-      (name + " Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Map.empty)})
+      (name + " Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Nil, Map.empty)})
     val lemmaTempArchive = lemmaEntries.map(new KeYmaeraXArchivePrinter()(_)).mkString("\n\n")
     checkArchiveEntries(KeYmaeraXArchiveParser.parse(lemmaTempArchive))
 
     val serializableTactic = db.extractSerializableTactic(sandbox, sbTactic)
     val sandboxEntry = ParsedArchiveEntry(entry.name + " Sandbox", "theorem", "", "", defs(sandbox),
-      sandbox, (entry.name + " Sandbox Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Map.empty)
+      sandbox, (entry.name + " Sandbox Proof", BellePrettyPrinter(serializableTactic), serializableTactic)::Nil, Nil, Map.empty)
 
     val archive = (lemmaEntries :+ sandboxEntry).map(new KeYmaeraXArchivePrinter()(_)).mkString("\n\n")
     checkArchiveEntries(KeYmaeraXArchiveParser.parse(archive))

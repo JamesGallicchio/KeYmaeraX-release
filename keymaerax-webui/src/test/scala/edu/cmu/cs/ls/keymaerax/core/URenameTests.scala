@@ -6,12 +6,14 @@ package edu.cmu.cs.ls.keymaerax.core
 
 import scala.collection.immutable
 import scala.collection.immutable._
-import edu.cmu.cs.ls.keymaerax.btactics.{DerivedRuleInfo, RandomFormula, TacticTestBase, TactixLibrary}
+import edu.cmu.cs.ls.keymaerax.btactics.{Ax, RandomFormula, TacticTestBase, TactixLibrary}
 import edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXPrettyPrinter
 import edu.cmu.cs.ls.keymaerax.parser.StringConverter._
 import edu.cmu.cs.ls.keymaerax.pt.ProvableSig
 import edu.cmu.cs.ls.keymaerax.tags.{SummaryTest, USubstTest, UsualTest}
 import edu.cmu.cs.ls.keymaerax.tools.KeYmaeraXTool
+import edu.cmu.cs.ls.keymaerax.macros._
+import edu.cmu.cs.ls.keymaerax.btactics.DerivationInfoAugmentors._
 import org.scalatest._
 import testHelper.KeYmaeraXTestTags
 import testHelper.CustomAssertions.withSafeClue
@@ -174,7 +176,7 @@ class URenameTests extends TacticTestBase {
 //    proof1.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq("(x+y)'=(x)'+(y)'".asFormula))
 //    val proof = proof1
     import TactixLibrary._
-    val proof = TactixLibrary.proveBy("(x+y)'=x'+y'".asFormula, derive(1, 0::Nil) & byUS("= reflexive"))
+    val proof = TactixLibrary.proveBy("(x+y)'=x'+y'".asFormula, derive(1, 0::Nil) & byUS(Ax.equalReflexive))
     proof shouldBe 'proved
     proof.conclusion shouldBe Sequent(IndexedSeq(), IndexedSeq("(x+y)'=x'+y'".asFormula))
     a [CoreException] shouldBe thrownBy{proof(UniformRenaming(DifferentialSymbol(Variable("x")), DifferentialSymbol(Variable("z"))), 0)}

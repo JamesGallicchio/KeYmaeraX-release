@@ -8,6 +8,7 @@ import edu.cmu.cs.ls.keymaerax.core._
 import edu.cmu.cs.ls.keymaerax.infrastruct.Augmentors._
 import edu.cmu.cs.ls.keymaerax.core
 import edu.cmu.cs.ls.keymaerax.infrastruct.{PosInExpr, Position, RenUSubst, UnificationMatchUSubstAboveURen}
+import edu.cmu.cs.ls.keymaerax.macros.Tactic
 import edu.cmu.cs.ls.keymaerax.pt.ProvableSig
 import org.apache.logging.log4j.scala.Logging
 
@@ -23,8 +24,9 @@ private object PropositionalTactics extends Logging {
    * @author Stefan Mitsch
    * @see [[SequentCalculus.implyR]]
    */
-  lazy val implyRi: AppliedBuiltinTwoPositionTactic = implyRi()(AntePos(0), SuccPos(0))
-  def implyRi(keep: Boolean = false): BuiltInTwoPositionTactic = "implyRi" by ((p: ProvableSig, a: Position, s: Position) => {
+  private[btactics] lazy val implyRi: AppliedBuiltinTwoPositionTactic = implyRi()(AntePos(0), SuccPos(0))
+  //@todo @Tactic()
+  private[btactics] def implyRi(keep: Boolean = false): BuiltInTwoPositionTactic = "implyRi" by ((p: ProvableSig, a: Position, s: Position) => {
     assert(p.subgoals.length == 1, "Assuming one subgoal.")
     val sequent = p.subgoals.head
     require(a.isIndexDefined(sequent) && s.isIndexDefined(sequent),
@@ -41,8 +43,8 @@ private object PropositionalTactics extends Logging {
    * @author Stefan Mitsch
    * @see [[ProofRuleTactics.orR]]
    */
-  lazy val orRi: DependentTactic = orRi()
-  def orRi(pos1: SuccPos = SuccPos(0), pos2: SuccPos = SuccPos(1)): DependentTactic = new SingleGoalDependentTactic("inverse or right") {
+  private[btactics] lazy val orRi: DependentTactic = orRi()
+  private[btactics] def orRi(pos1: SuccPos = SuccPos(0), pos2: SuccPos = SuccPos(1)): DependentTactic = new SingleGoalDependentTactic("inverse or right") {
     override def computeExpr(sequent: Sequent): BelleExpr = {
       require(pos1 != pos2, "Two distinct positions required")
       require(sequent.succ.length > pos1.getIndex && sequent.succ.length > pos2.getIndex,
@@ -65,8 +67,8 @@ private object PropositionalTactics extends Logging {
    * @author Stefan Mitsch
    * @see [[ProofRuleTactics.andL]]
    */
-  lazy val andLi: DependentTactic = andLi()
-  def andLi(pos1: AntePos = AntePos(0), pos2: AntePos = AntePos(1)): DependentTactic = new SingleGoalDependentTactic("inverse and left") {
+  private[btactics] lazy val andLi: DependentTactic = andLi()
+  private[btactics] def andLi(pos1: AntePos = AntePos(0), pos2: AntePos = AntePos(1)): DependentTactic = new SingleGoalDependentTactic("inverse and left") {
     override def computeExpr(sequent: Sequent): BelleExpr = {
       require(pos1 != pos2, "Two distinct positions required")
       require(sequent.ante.length > pos1.getIndex && sequent.ante.length > pos2.getIndex,
@@ -89,7 +91,7 @@ private object PropositionalTactics extends Logging {
  *
    * @see [[UnifyUSCalculus.CMon(Context)]]
    * @see [[UnifyUSCalculus.CE(Context)]]
-   * @example{{{
+   * @example {{{
    *                  z=1 |- z>0
    *         --------------------------propCE(PosInExpr(1::Nil))
    *           x>0 -> z=1 |- x>0 -> z>0
@@ -97,6 +99,7 @@ private object PropositionalTactics extends Logging {
    * @param at Points to the position to unpeel.
    * @return The tactic.
    */
+  //@todo optimizable a lot by using technique from TactixLibrary.stepAt index instead of |
   def propCMon(at: PosInExpr): DependentTactic = new SingleGoalDependentTactic("Prop. CMon") {
     override def computeExpr(sequent: Sequent): BelleExpr = {
       require(sequent.ante.length == 1 && sequent.succ.length == 1 &&
@@ -106,26 +109,32 @@ private object PropositionalTactics extends Logging {
       // we know that we have the same operator in antecedent and succedent with the same lhs -> we know that one
       // will branch and one of these branches will close by identity. on the other branch, we have to hide
       // list all cases explicitly, hide appropriate formulas in order to not blow up branching
-      (((notL(-1) & notR(1) & assertT(1, 1))
-        | ((andL(-1) & andR(1) <((close | (hideL(-2))), (close | (hideL(-1)))) & assertT(1, 1))
-        | ((orR(1) & orL(-1) <((close | (hideR(2))), (close | (hideR(1)))) & assertT(1, 1))
-        | ((implyR(1) & implyL(-1) <((close | (hideR(1))), (close | (hideL('Llast)))) & assertT(1, 1))
-        | ((monb)
-        | ((mond)
-        | ((allR(1) & allL(-1))
-        | (existsL(-1) & existsR(1))
-       ))))))))*at.pos.length
+      if (at.pos.length <= 0) skip
+      else (sequent.succ.headOption match {
+        case Some(_: Not) => notL(-1) & notR(1) & assertT(1, 1)
+        case Some(_: And) => andL(-1) & andR(1) <(close | hideL(-2), close | hideL(-1)) & assertT(1, 1)
+        case Some(_: Or) => orR(1) & orL(-1) <(close | hideR(2), close | hideR(1)) & assertT(1, 1)
+        case Some(_: Imply) => implyR(1) & implyL(-1) <(close | hideR(1), close | hideL('Llast)) & assertT(1, 1)
+        case Some(_: Box) => monb
+        case Some(_: Diamond) => mond
+        case Some(_: Forall) => allR(1) & allL(-1)
+        case Some(_: Exists) => existsL(-1) & existsR(1)
+        case Some(e) => throw new TacticInapplicableFailure("Prop. CMon not applicable to " + e.prettyString)
+        // redundant to exception raised by .at(...) in contract above
+        case None => throw new IllFormedTacticApplicationException("Prop. CMon: no more formulas left to descend into " + at.prettyString)
+      }) & propCMon(at.child)
     }
   }
 
   /** @see [[SequentCalculus.modusPonens()]] */
-  def modusPonens(assumption: AntePos, implication: AntePos): BelleExpr = new SingleGoalDependentTactic("Modus Ponens") {
+  private[btactics] def modusPonens(assumption: AntePos, implication: AntePos): BelleExpr = new SingleGoalDependentTactic("Modus Ponens") {
     override def computeExpr(sequent: Sequent): BelleExpr = {
       val p = AntePos(assumption.getIndex - (if (assumption.getIndex > implication.getIndex) 1 else 0))
       //@note adapted to use implyL instead of implyLOld
       implyL(implication) <(
-        cohide2(p, SuccPos(sequent.succ.length)) & close
-        //@todo shouldn't this suffice? close(AntePosition(assumption), SuccPosition(SuccPos(sequent.succ.length)))
+        close(p, SuccPos(sequent.succ.length))
+        //cohide2(p, SuccPos(sequent.succ.length)) & close
+        //@todo optimizable shouldn't this suffice? close(AntePosition(assumption), SuccPosition(SuccPos(sequent.succ.length)))
         ,
         Idioms.ident
         )
@@ -143,14 +152,15 @@ private object PropositionalTactics extends Logging {
    *   (A ^ B) -> (S \/ T \/ U)
    * }}}
    */
-  val toSingleFormula: DependentTactic  = "toSingleFormula" by ((sequent: Sequent) => {
+  @Tactic()
+  val toSingleFormula: DependentTactic  = anon {(sequent: Sequent) =>
     cut(sequent.toFormula) <(
       /* use */ implyL('Llast) <(
         hideR(1)*sequent.succ.size & (andR(1) <(close, skip))*(sequent.ante.size-1) & onAll(close),
         hideL(-1)*sequent.ante.size & (orL(-1) <(close, skip))*(sequent.succ.size-1) & onAll(close)),
       /* show */ cohide('Rlast)
       )
-  })
+  }
 
   //region Equivalence Rewriting
 

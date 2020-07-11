@@ -58,7 +58,7 @@ class CpsWeekTutorial extends TacticTestBase {
 
   it should "have 4 open goals for abstract invariant J(x,v) with master" in withQE { _ =>
     val s = parseToSequent(getClass.getResourceAsStream("/examples/tutorials/cpsweek/01_robo1.kyx"))
-    val cgen = TactixLibrary.invGenerator match { case c: ConfigurableGenerator[GenProduct] => c }
+    val cgen = TactixLibrary.invSupplier match { case c: ConfigurableGenerator[GenProduct] => c }
     val result = proveBy(s, explore(cgen))
     result.subgoals should have size 4
     result.subgoals(0) shouldBe "x!=m(), b()>0 ==> J(x,v)".asSequent
@@ -192,7 +192,7 @@ class CpsWeekTutorial extends TacticTestBase {
 
     def di(a: String) = {
       val accCond = "2*b()*abs(mx-x)>v^2+(A()+b())*(A()*ep()^2+2*ep()*v)|2*b()*abs(my-y)>v^2+(A()+b())*(A()*ep()^2+2*ep()*v)".asFormula
-      diffInvariant("dx^2+dy^2=1".asFormula, "t>=0".asFormula, s"v=old(v)+$a*t".asFormula)('R) &
+      diffInvariant("dx^2+dy^2=1".asFormula :: "t>=0".asFormula :: s"v=old(v)+$a*t".asFormula :: Nil)('R) &
       DebuggingTactics.print("Now what?") &
       dC(s"-t*(v-$a/2*t)<=x-old(x) & x-old(x)<=t*(v-$a/2*t) & -t*(v-$a/2*t)<=y-old(y) & y-old(y)<=t*(v-$a/2*t)".asFormula)('R) <(
         skip,

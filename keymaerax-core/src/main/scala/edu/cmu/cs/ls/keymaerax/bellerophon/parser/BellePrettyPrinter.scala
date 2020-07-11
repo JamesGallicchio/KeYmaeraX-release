@@ -2,9 +2,10 @@ package edu.cmu.cs.ls.keymaerax.bellerophon.parser
 
 import edu.cmu.cs.ls.keymaerax.bellerophon._
 import BelleOpSpec.op
-import edu.cmu.cs.ls.keymaerax.btactics.TacticInfo
+import edu.cmu.cs.ls.keymaerax.macros.TacticInfo
 import edu.cmu.cs.ls.keymaerax.core.{Equal, Expression, Formula, Term}
 import edu.cmu.cs.ls.keymaerax.parser.KeYmaeraXPrettyPrinter
+import edu.cmu.cs.ls.keymaerax.btactics.DerivationInfoAugmentors._
 
 import scala.util.Try
 
@@ -47,7 +48,6 @@ object BellePrettyPrinter extends (BelleExpr => String) {
         case e: Expand => e.prettyString
         case SeqTactic(l,r)    => sanitizeBinary(wrapLeft(e, l, indent), op(e).terminal.img, wrapRight(e, r, indent))
         case EitherTactic(l,r) => sanitizeBinary(wrapLeft(e, l, indent), op(e).terminal.img, wrapRight(e, r, indent))
-        case AfterTactic(l,r)  => sanitizeBinary(wrapLeft(e, l, indent), op(e).terminal.img, wrapRight(e, r, indent))
         case BranchTactic(ts) => op(e).terminal.img +
           "(" + newline(indent) + ts.map(pp(_, indent+1)).mkString(", " + newline(indent+1)) + newline(indent) + ")"
         case SaturateTactic(t) => sanitizeUnary(wrapLeft(e, t, indent), op(e).terminal.img)
@@ -83,7 +83,7 @@ object BellePrettyPrinter extends (BelleExpr => String) {
         }
         case ap : AppliedPositionTactic => pp(ap.positionTactic, indent) + argListPrinter(Right(ap.locator) :: Nil)
         case it : InputTactic =>
-          val eargs = it.inputs.map(input => argPrinter(Left(input))).mkString(", ")
+          val eargs = it.inputs.map(input => argPrinter(Left(input))).filter(_.isEmpty).mkString(", ")
           it.name + "(" + eargs + ")"
         case t: AppliedBuiltinTwoPositionTactic => t.positionTactic.name + "(" + t.posOne.prettyString + ", " + t.posTwo.prettyString + ")"
         case NamedTactic(name, _) if name != "ANON" => name
@@ -101,7 +101,10 @@ object BellePrettyPrinter extends (BelleExpr => String) {
 
   private def argPrinter(arg: BelleParser.TacticArg) = arg match {
     case Left(expr: Expression) => "\"" + KeYmaeraXPrettyPrinter(expr) + "\""
+    case Left(Some(expr: Expression)) => "\"" + KeYmaeraXPrettyPrinter(expr) + "\""
+    case Left(Some(expr)) => "\"" + expr + "\""
     case Left(expr) => "\"" + expr + "\""
+    case Left(None) => ""
     case Right(loc) => loc.prettyString
   }
 
