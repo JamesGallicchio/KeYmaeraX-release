@@ -296,13 +296,7 @@ class MathematicaConversionTests extends FlatSpec with Matchers with BeforeAndAf
     round trip "min(x,y)".asTerm
     round trip "max(x,y)".asTerm
 
-    val exp = "exp(x)".asTerm
-    MathematicaToKeYmaera(KeYmaeraToMathematica(exp)) shouldBe exp
-
-    println(round.roundTrip("exp(0)".asTerm,KeYmaeraToMathematica).prettyString)
-
-    // Doesn't work because Mathematica returns Power[E,x] instead of Exp[x]
-    // round trip "exp(x)".asTerm
+    round trip "exp(x)".asTerm
     round trip "sin(x)".asTerm
     round trip "cos(x)".asTerm
 

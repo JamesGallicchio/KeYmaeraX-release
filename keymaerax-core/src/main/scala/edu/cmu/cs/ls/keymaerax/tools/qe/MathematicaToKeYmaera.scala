@@ -46,7 +46,13 @@ class MathematicaToKeYmaera extends M2KConverter[KExpr] {
     else if (MathematicaOpSpec.minus.applies(e))  convertBinary(e, Minus.apply)
     else if (MathematicaOpSpec.times.applies(e))  convertNary  (e, Times.apply)
     else if (MathematicaOpSpec.divide.applies(e)) convertBinary(e, Divide.apply)
-    else if (MathematicaOpSpec.power.applies(e))  convertBinary(e, Power.apply)
+    else if (MathematicaOpSpec.power.applies(e))  {
+      val conv = convertBinary(e, Power.apply)
+      if (conv.left == FuncOf(Function("e", None, Unit, Real, interpreted=true), Nothing))
+        FuncOf(Function("exp", None, Real, Real, interpreted=true), conv.right)
+      else conv
+    }
+    else if (MathematicaOpSpec.e.applies(e)) FuncOf(Function("e", None, Unit, Real, interpreted=true), Nothing)
     else if (MathematicaOpSpec.neg.applies(e))    convertUnary (e, Neg.apply)
 
     // Comparisons

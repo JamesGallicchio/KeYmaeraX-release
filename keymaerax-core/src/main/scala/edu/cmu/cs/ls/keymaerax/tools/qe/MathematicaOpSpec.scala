@@ -137,6 +137,8 @@ object MathematicaOpSpec {
 
   def exp: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Exp"), Function("exp", None, Real, Real, interpreted=true))
 
+  def e: LiteralMathOpSpec = LiteralMathOpSpec(symbol("E"))
+
   def sin: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Sin"), Function("sin", None, Real, Real, interpreted=true))
 
   def cos: InterpretedMathOpSpec = InterpretedMathOpSpec(symbol("Cos"), Function("cos", None, Real, Real, interpreted=true))
