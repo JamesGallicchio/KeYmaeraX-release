@@ -385,6 +385,12 @@ trait HilbertCalculus extends UnifyUSCalculus {
     lazy val Dquotient          : DependentPositionTactic = useAt(Ax.Dquotient)
     /** Dpower: ^' derives a power */
     lazy val Dpower             : DependentPositionTactic = useAt(Ax.Dpower)
+    /** Dexp: exp' derives exp */
+    lazy val Dexp             : DependentPositionTactic = useAt(Ax.Dexp)
+    /** Dpower: sin' derives sin */
+    lazy val Dsin             : DependentPositionTactic = useAt(Ax.Dsin)
+    /** Dpower: cos' derives cos */
+    lazy val Dcos             : DependentPositionTactic = useAt(Ax.Dcos)
     /** Dcompose: o' derives a function composition by chain rule */
       //@todo not sure if useAt can handle this yet
     lazy val Dcompose           : DependentPositionTactic = useAt(Ax.Dcompose)

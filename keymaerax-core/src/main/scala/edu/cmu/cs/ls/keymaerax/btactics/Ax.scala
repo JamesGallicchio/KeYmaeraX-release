@@ -481,6 +481,15 @@ object Ax extends Logging {
   @Axiom("^'", conclusion = "__(f(g)^n)'__=n·f(g)^(n-1)·(f(g))'←n≠0", unifier = "linear",
     key = "1.0", recursor = "1")
   val Dpower = coreAxiom("^' derive power")
+  @Axiom("exp'", conclusion = "__(exp(f(g)))'__=exp(f(g))·(f(g))'", unifier = "linear",
+    key = "0", recursor = "1")
+  val Dexp = coreAxiom("exp' derive exp")
+  @Axiom("sin'", conclusion = "__(sin(f(g)))'__=cos(f(g))·(f(g))'", unifier = "linear",
+    key = "0", recursor = "1")
+  val Dsin = coreAxiom("sin' derive cos")
+  @Axiom("cos'", conclusion = "__(cos(f(g)))'__=-sin(f(g))·(f(g))'", unifier = "linear",
+    key = "0", recursor = "1")
+  val Dcos = coreAxiom("cos' derive sin")
   @Axiom("='", conclusion = "__(f(x)=g(x))'__↔f(x)'=g(x)'",
     key = "0", recursor = "0;1", unifier = "surjlinear")
   val Dequal = coreAxiom("=' derive =")

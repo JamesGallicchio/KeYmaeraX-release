@@ -74,6 +74,9 @@ object AxIndex extends (Expression => List[DerivationInfo]) with Logging {
         case _: Times => Ax.Dtimes :: Nil
         case _: Divide => Ax.Dquotient :: Nil
         case _: Power => Ax.Dpower :: Nil
+        case FuncOf(Function("exp", None, Real, Real, true), _) => Ax.Dexp :: Nil
+        case FuncOf(Function("sin", None, Real, Real, true), _) => Ax.Dsin :: Nil
+        case FuncOf(Function("cos", None, Real, Real, true), _) => Ax.Dcos :: Nil
         case FuncOf(_, Nothing) => Ax.Dconst :: Nil
         case _ => Nil
       }
