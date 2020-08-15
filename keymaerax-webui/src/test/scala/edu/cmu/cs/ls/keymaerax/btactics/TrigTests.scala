@@ -1,8 +1,7 @@
-package btactics
+package edu.cmu.cs.ls.keymaerax.btactics
 
 import edu.cmu.cs.ls.keymaerax.Configuration
 import edu.cmu.cs.ls.keymaerax.btactics.TactixLibrary._
-import edu.cmu.cs.ls.keymaerax.btactics.{DifferentialTactics, TacticTestBase}
 import edu.cmu.cs.ls.keymaerax.parser.StringConverter._
 
 class TrigTests extends TacticTestBase {

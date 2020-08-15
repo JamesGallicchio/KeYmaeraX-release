@@ -33,7 +33,7 @@ import scala.util.Try
   * @note Container for "complicated" tactics. Single-line implementations are in [[TactixLibrary]].
  * @see [[TactixLibrary.DW]], [[TactixLibrary.DC]]
  */
-object DifferentialTactics extends Logging {
+private object DifferentialTactics extends Logging {
 
   private val namespace = "differentialtactics"
 
