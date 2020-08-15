@@ -242,7 +242,7 @@ private[core] object AxiomBase extends Logging {
     insist(axs("x' derive var") == Equal(Differential(x), DifferentialSymbol(x)), "x' derive var")
     insist(axs("exp' derive exp") == Equal(Differential(FuncOf(exp,fany)),Times(Differential(fany),FuncOf(exp,fany))), "exp' derive exp")
     insist(axs("sin' derive sin") == Equal(Differential(FuncOf(sin,fany)),Times(Differential(fany),FuncOf(cos,fany))), "sin' derive sin")
-    insist(axs("cos' derive cos") == Equal(Differential(FuncOf(cos,fany)),Neg(Times(Differential(fany),FuncOf(sin,fany)))), "cos' derive cos")
+    insist(axs("cos' derive cos") == Equal(Differential(FuncOf(cos,fany)),Times(Differential(fany),Neg(FuncOf(sin,fany)))), "cos' derive cos")
 
     //insist(axs("all instantiate") == Imply(Forall(Seq(x), PredOf(p,x)), PredOf(p,f0)), "all instantiate")
     // soundness-critical that these are for p() not for p(x) or p(||)
@@ -458,7 +458,7 @@ Axiom "sin' derive sin"
 End.
 
 Axiom "cos' derive cos"
-  (cos(f(||)))' = - f(||)' * sin(f(||))
+  (cos(f(||)))' = f(||)' * (- sin(f(||)))
 End.
 
 Axiom "=' derive ="
